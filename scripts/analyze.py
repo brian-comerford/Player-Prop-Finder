@@ -29,6 +29,20 @@ TREND_MIN_HIT_RATE = 0.7
 MATCHUP_TREND_MIN_GAMES = 3
 MATCHUP_TREND_MIN_HIT_RATE = 0.7
 
+# A player who hasn't taken a confirmed snap in this many "league weeks"
+# (roughly: games) is treated as inactive/injured/retired and excluded
+# entirely, regardless of how good their old stat line looks. Loose enough
+# to tolerate a bye week or a short-term injury blip, tight enough to catch
+# someone who's been out for a month or missed a full offseason.
+INACTIVE_GAMES_MISSED_THRESHOLD = 4
+WEEKS_PER_SEASON = 18
+
+
+def games_missed(last_active_season, last_active_week, upcoming_season, upcoming_week):
+    return (upcoming_season - last_active_season) * WEEKS_PER_SEASON + (
+        upcoming_week - last_active_week
+    )
+
 USAGE_MIN = {
     "player_pass_yds": ("attempts", 5),
     "player_pass_tds": ("attempts", 5),
@@ -92,6 +106,7 @@ def build_player_baselines(stats_df):
             game_log = game_log_df.to_dict("records")
 
             baselines[(norm_name, mkey)] = {
+                "player_id": player_id,
                 "mean": mean,
                 "std": floor,
                 "games": n,
@@ -100,6 +115,8 @@ def build_player_baselines(stats_df):
                 "display_name": display_name,
                 "game_log": game_log,
                 "recent_games": game_log[:8],
+                "last_active_season": int(group["season"].iloc[0]),
+                "last_active_week": int(group["week"].iloc[0]),
             }
     return baselines, team_by_player
 
@@ -239,10 +256,34 @@ def main():
         odds_meta = json.load(f)
     with open(os.path.join(DATA_DIR, "odds_quotes.json")) as f:
         quotes = json.load(f)
+    with open(os.path.join(DATA_DIR, "player_activity.json")) as f:
+        player_activity = json.load(f)
 
     baselines, team_by_player = build_player_baselines(stats_df)
     defense_factors = build_defense_factors(stats_df)
     bottom_half_cache = {}
+
+    inactive_players = set()
+    if season_week["upcoming_season"] is not None:
+        active_baselines = {}
+        for key, base in baselines.items():
+            last_season, last_week = base["last_active_season"], base["last_active_week"]
+            pbp_seen = player_activity.get(base["player_id"])
+            if pbp_seen and (pbp_seen["season"], pbp_seen["week"]) > (last_season, last_week):
+                last_season, last_week = pbp_seen["season"], pbp_seen["week"]
+
+            missed = games_missed(
+                last_season, last_week, season_week["upcoming_season"], season_week["upcoming_week"]
+            )
+            if missed > INACTIVE_GAMES_MISSED_THRESHOLD:
+                inactive_players.add(base["display_name"])
+                continue
+            active_baselines[key] = base
+        baselines = active_baselines
+        print(
+            f"Excluded {len(inactive_players)} players with no confirmed snap in the last "
+            f"{INACTIVE_GAMES_MISSED_THRESHOLD} games"
+        )
 
     props = []
     for q in quotes:
@@ -339,6 +380,7 @@ def main():
         "odds_fetched_at": odds_meta["fetched_at"],
         "prop_count": len(props),
         "markets": {k: v["label"] for k, v in MARKETS.items()},
+        "inactive_players_excluded": len(inactive_players),
     }
     with open(os.path.join(DATA_DIR, "meta.json"), "w") as f:
         json.dump(meta, f)
