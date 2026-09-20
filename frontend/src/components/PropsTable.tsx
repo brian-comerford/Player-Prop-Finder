@@ -67,7 +67,7 @@ export default function PropsTable({
                 >
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1.5">
-                      {hasTrends && (
+                      {hasTrends ? (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -83,6 +83,8 @@ export default function PropsTable({
                             &#9656;
                           </span>
                         </button>
+                      ) : (
+                        <span className="h-5 w-5 shrink-0" aria-hidden="true" />
                       )}
                       <div>
                         <div className="font-medium">{p.player_name}</div>
