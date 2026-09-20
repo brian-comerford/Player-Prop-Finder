@@ -111,15 +111,11 @@ def fetch_live(slate, api_key):
     return quotes
 
 
-_anytime_td_payload_logged = False
-
-
 def _parse_event_odds(payload):
     """Flatten one event's bookmaker odds into per-(player, market) quotes,
     keeping the best (most favorable to the bettor) price at the most
     common line across books.
     """
-    global _anytime_td_payload_logged
     home = payload.get("home_team")
     away = payload.get("away_team")
     home_code = TEAM_NAME_TO_CODE.get(home)
@@ -132,12 +128,6 @@ def _parse_event_odds(payload):
             mkey = market["key"]
             if mkey not in MARKETS:
                 continue
-            if mkey == "player_anytime_td" and not _anytime_td_payload_logged:
-                print(
-                    f"  [debug] raw player_anytime_td outcomes from {bm.get('key')}: "
-                    f"{market.get('outcomes', [])[:6]}"
-                )
-                _anytime_td_payload_logged = True
             for outcome in market.get("outcomes", []):
                 player = outcome.get("description")
                 if not player:
@@ -156,12 +146,6 @@ def _parse_event_odds(payload):
             if binary:
                 yes = sides.get("yes", [])
                 no = sides.get("no", [])
-                if mkey == "player_anytime_td" and player in (
-                    "Jaylen Warren",
-                    "Pat Freiermuth",
-                    "Justin Jefferson",
-                ):
-                    print(f"  [debug] {player} anytime_td buckets: yes={yes} no={no}")
                 if not yes:
                     continue
                 price_yes, book_yes = _best_price(yes)
@@ -214,7 +198,7 @@ def _parse_event_odds(payload):
 def _best_price(entries):
     """`entries` is a list of (point, price, book); returns the most
     bettor-favorable (price, book) pair."""
-    price, _, book = max(entries, key=lambda e: e[1])
+    _, price, book = max(entries, key=lambda e: e[1])
     return price, book
 
 

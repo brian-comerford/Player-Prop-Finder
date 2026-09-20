@@ -344,7 +344,6 @@ def main():
     drop_no_baseline = Counter()
     drop_team_mismatch = Counter()
     drop_no_candidates = Counter()
-    anytime_td_samples = []
 
     props = []
     for q in quotes:
@@ -386,21 +385,6 @@ def main():
         edge_over = (model_over - novig_over) if novig_over is not None else None
         edge_under = (model_under - novig_under) if novig_under is not None else None
 
-        if q["market"] == "player_anytime_td" and len(anytime_td_samples) < 15:
-            anytime_td_samples.append(
-                {
-                    "player": base["display_name"],
-                    "price_over": q["price_over"],
-                    "price_under": q["price_under"],
-                    "raw_over": round(raw_over, 3) if raw_over is not None else None,
-                    "raw_under": round(raw_under, 3) if raw_under is not None else None,
-                    "novig_over": round(novig_over, 3) if novig_over is not None else None,
-                    "model_over": round(model_over, 3),
-                    "edge_over": round(edge_over, 3) if edge_over is not None else None,
-                    "edge_under": round(edge_under, 3) if edge_under is not None else None,
-                }
-            )
-
         candidates = [
             (side, edge)
             for side, edge in (("over", edge_over), ("under", edge_under))
@@ -410,21 +394,6 @@ def main():
             drop_no_candidates[q["market"]] += 1
             continue
         recommended_side, recommended_edge = max(candidates, key=lambda x: x[1])
-
-        if q["market"] == "player_anytime_td" and len(anytime_td_samples) < 15:
-            anytime_td_samples.append(
-                {
-                    "player": base["display_name"],
-                    "price_over": q["price_over"],
-                    "price_under": q["price_under"],
-                    "raw_over": round(raw_over, 3) if raw_over is not None else None,
-                    "raw_under": round(raw_under, 3) if raw_under is not None else None,
-                    "novig_over": round(novig_over, 3) if novig_over is not None else None,
-                    "model_over": round(model_over, 3),
-                    "edge_over": round(edge_over, 3) if edge_over is not None else None,
-                    "edge_under": round(edge_under, 3) if edge_under is not None else None,
-                }
-            )
 
         bh_key = (q["market"], base["position"])
         if bh_key not in bottom_half_cache:
@@ -478,10 +447,6 @@ def main():
             f"no_candidates={drop_no_candidates.get(mkey, 0)} -> "
             f"{final_counts.get(mkey, 0)} final props"
         )
-    if anytime_td_samples:
-        print("Sample player_anytime_td quotes/edges:")
-        for s in anytime_td_samples:
-            print(f"  {s}")
 
     with open(os.path.join(DATA_DIR, "props.json"), "w") as f:
         json.dump(props, f)
