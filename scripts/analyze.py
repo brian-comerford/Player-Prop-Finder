@@ -386,6 +386,21 @@ def main():
         edge_over = (model_over - novig_over) if novig_over is not None else None
         edge_under = (model_under - novig_under) if novig_under is not None else None
 
+        if q["market"] == "player_anytime_td" and len(anytime_td_samples) < 15:
+            anytime_td_samples.append(
+                {
+                    "player": base["display_name"],
+                    "price_over": q["price_over"],
+                    "price_under": q["price_under"],
+                    "raw_over": round(raw_over, 3) if raw_over is not None else None,
+                    "raw_under": round(raw_under, 3) if raw_under is not None else None,
+                    "novig_over": round(novig_over, 3) if novig_over is not None else None,
+                    "model_over": round(model_over, 3),
+                    "edge_over": round(edge_over, 3) if edge_over is not None else None,
+                    "edge_under": round(edge_under, 3) if edge_under is not None else None,
+                }
+            )
+
         candidates = [
             (side, edge)
             for side, edge in (("over", edge_over), ("under", edge_under))
