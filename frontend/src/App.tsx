@@ -36,6 +36,8 @@ export default function App() {
       .filter((p) => (search ? p.player_name.toLowerCase().includes(search) : true))
       .filter((p) => (filters.position === "All" ? true : p.position === filters.position))
       .filter((p) => (filters.market === "All" ? true : p.market === filters.market))
+      .filter((p) => (filters.matchup === "All" ? true : p.matchup === filters.matchup))
+      .filter((p) => (filters.timeSlot === "All" ? true : p.time_slot === filters.timeSlot))
       .filter((p) => (sideEdge(p, p.recommended_side) ?? 0) >= filters.minEdge)
       .filter((p) => CONFIDENCE_RANK[p.confidence] >= minConfidenceRank)
       .sort((a, b) => b.recommended_edge - a.recommended_edge);

@@ -4,6 +4,8 @@ export interface FilterState {
   search: string;
   position: string;
   market: string;
+  matchup: string;
+  timeSlot: string;
   minEdge: number;
   minConfidence: "Any" | "Medium" | "High";
 }
@@ -12,6 +14,8 @@ export const DEFAULT_FILTERS: FilterState = {
   search: "",
   position: "All",
   market: "All",
+  matchup: "All",
+  timeSlot: "All",
   minEdge: 0.03,
   minConfidence: "Any",
 };
@@ -31,7 +35,7 @@ export default function Filters({
     onChange({ ...filters, [key]: value });
 
   return (
-    <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2 lg:grid-cols-4">
       <label className="flex flex-col gap-1 text-sm">
         <span className="text-slate-500 dark:text-slate-400">Search player</span>
         <input
@@ -69,6 +73,38 @@ export default function Filters({
           {Object.entries(meta.markets).map(([key, label]) => (
             <option key={key} value={key}>
               {label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-slate-500 dark:text-slate-400">Game</span>
+        <select
+          value={filters.matchup}
+          onChange={(e) => set("matchup", e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+        >
+          <option value="All">All games</option>
+          {meta.matchups.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-slate-500 dark:text-slate-400">Time slot</span>
+        <select
+          value={filters.timeSlot}
+          onChange={(e) => set("timeSlot", e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+        >
+          <option value="All">All times</option>
+          {meta.time_slots.map((t) => (
+            <option key={t} value={t}>
+              {t}
             </option>
           ))}
         </select>

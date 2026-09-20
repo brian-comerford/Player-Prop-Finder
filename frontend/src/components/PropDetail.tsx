@@ -34,6 +34,7 @@ export default function PropDetail({ prop, onClose }: { prop: Prop; onClose: () 
             <h2 className="text-xl font-bold">{prop.player_name}</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               {prop.position} &middot; {prop.team} vs {prop.opponent} &middot; {prop.market_label}
+              {prop.time_slot && <> &middot; {prop.time_slot}</>}
             </p>
           </div>
           <button
