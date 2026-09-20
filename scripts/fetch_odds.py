@@ -75,6 +75,20 @@ def fetch_live(slate, api_key):
         try:
             r = requests.get(url, params=params, timeout=30)
             r.raise_for_status()
+        except requests.HTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else "?"
+            body = exc.response.text[:300] if exc.response is not None else ""
+            print(f"  skipping event {event['id']} ({status}: {body})")
+            if status == 401:
+                print(
+                    "  401 from every event usually means the free-tier monthly quota "
+                    "(500 credits) is used up, or the key itself is invalid -- check "
+                    "https://the-odds-api.com/account/. Stopping further calls this run "
+                    "and falling back to sample odds instead of retrying a key that's "
+                    "already failing."
+                )
+                break
+            continue
         except requests.RequestException as exc:
             print(f"  skipping event {event['id']} ({exc})")
             continue
