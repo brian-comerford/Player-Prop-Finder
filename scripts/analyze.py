@@ -19,6 +19,7 @@ from common import DATA_DIR, MARKETS, american_to_implied_prob, remove_vig_two_w
 RECENCY_DECAY = 0.88
 MIN_GAMES = 3
 DEFENSE_FACTOR_BOUNDS = (0.75, 1.25)
+MIN_ROWS_FOR_POSITION_FACTOR = 8
 TD_PROB_BOUNDS = (0.02, 0.95)
 
 USAGE_MIN = {
@@ -96,25 +97,61 @@ def build_player_baselines(stats_df):
 
 
 def build_defense_factors(stats_df):
-    """{market_key: {team_code: factor}} -- how much a defense inflates or
-    suppresses opponents' production in that stat, relative to league average.
+    """{market_key: {"overall": {team: factor}, "by_position": {position: {team: factor}}}}
+
+    How much a defense inflates or suppresses opponents' production in a
+    stat, relative to league average -- split by the offensive player's own
+    position (QB/RB/WR/TE) wherever there's enough sample to trust it, so a
+    defense's rushing/receiving-TD funnel to running backs is judged
+    separately from its funnel to receivers and tight ends. This also means
+    a running back's receiving production is judged against what a defense
+    allows to running backs specifically, not blended in with wideouts.
+    Falls back to one blended team factor (all positions combined) when a
+    position-specific bucket is too thin to trust.
     """
     factors = {}
     for mkey, cfg in MARKETS.items():
+        per_game = stats_df.copy()
         if cfg.get("binary"):
-            per_game = stats_df.copy()
             per_game["_val"] = (per_game[cfg["stat_cols"]].fillna(0).sum(axis=1) > 0).astype(float)
         else:
-            per_game = stats_df.copy()
             per_game["_val"] = per_game[cfg["stat_cols"]].fillna(0).sum(axis=1)
 
         league_avg = per_game["_val"].mean()
         if not league_avg:
             continue
-        by_team = per_game.groupby("opponent_team")["_val"].mean()
-        team_factors = (by_team / league_avg).clip(*DEFENSE_FACTOR_BOUNDS).to_dict()
-        factors[mkey] = team_factors
+
+        overall_by_team = per_game.groupby("opponent_team")["_val"].mean()
+        overall_factors = (overall_by_team / league_avg).clip(*DEFENSE_FACTOR_BOUNDS).to_dict()
+
+        by_position = {}
+        for position in cfg["position_group"]:
+            pos_rows = per_game[per_game["position"] == position]
+            pos_league_avg = pos_rows["_val"].mean()
+            if not pos_league_avg:
+                continue
+            row_counts = pos_rows.groupby("opponent_team")["_val"].count()
+            pos_factors = (pos_rows.groupby("opponent_team")["_val"].mean() / pos_league_avg).clip(
+                *DEFENSE_FACTOR_BOUNDS
+            )
+            by_position[position] = {
+                team: value
+                for team, value in pos_factors.items()
+                if row_counts.get(team, 0) >= MIN_ROWS_FOR_POSITION_FACTOR
+            }
+
+        factors[mkey] = {"overall": overall_factors, "by_position": by_position}
     return factors
+
+
+def defense_factor_for(defense_factors, market, position, opponent):
+    """Position-specific factor when there's enough sample, else the
+    blended-across-all-positions factor, else neutral (1.0)."""
+    market_factors = defense_factors.get(market, {})
+    factor = market_factors.get("by_position", {}).get(position, {}).get(opponent)
+    if factor is not None:
+        return factor
+    return market_factors.get("overall", {}).get(opponent, 1.0)
 
 
 def confidence_label(games, mean, std):
@@ -165,7 +202,7 @@ def main():
             continue
 
         cfg = MARKETS[q["market"]]
-        factor = defense_factors.get(q["market"], {}).get(opponent, 1.0)
+        factor = defense_factor_for(defense_factors, q["market"], base["position"], opponent)
         projected_mean = base["mean"] * factor
 
         model_over, model_under = project_probabilities(
