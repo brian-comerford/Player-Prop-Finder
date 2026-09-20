@@ -1,3 +1,15 @@
+const BOOK_LABELS: Record<string, string> = {
+  draftkings: "DraftKings",
+  fanduel: "FanDuel",
+  kalshi: "Kalshi",
+  sample: "Sample",
+};
+
+export function formatBook(book: string | null): string {
+  if (!book) return "—";
+  return BOOK_LABELS[book] ?? book;
+}
+
 export function formatOdds(odds: number | null): string {
   if (odds === null || Number.isNaN(odds)) return "—";
   return odds > 0 ? `+${odds}` : `${odds}`;

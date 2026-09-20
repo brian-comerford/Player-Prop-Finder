@@ -54,10 +54,16 @@ export default function InfoPage() {
             The side (over/under, or "yes" for Anytime TD) the model estimates is priced in the
             bettor's favor &mdash; i.e. whichever side has the larger edge.
           </Term>
+          <Term term="Book">
+            Which source the line and odds came from: DraftKings, FanDuel, or Kalshi (a
+            federally-regulated prediction market, not a sportsbook &mdash; its "odds" are
+            derived from a contract price rather than posted directly). When neither a book nor
+            an API key is configured, this reads "Sample."
+          </Term>
           <Term term="Odds">
-            The sportsbook's American odds for the picked side. Negative numbers (e.g. -110)
-            show how much you'd need to stake to win $100; positive numbers (e.g. +130) show
-            how much a $100 stake would win.
+            The odds for the picked side, in American format, from whichever book is shown in
+            the Book column. Negative numbers (e.g. -110) show how much you'd need to stake to
+            win $100; positive numbers (e.g. +130) show how much a $100 stake would win.
           </Term>
           <Term term="Model %">
             The model's estimated probability that the picked side happens, based on the
@@ -152,14 +158,21 @@ export default function InfoPage() {
           >
             nflverse
           </a>
-          , a free public NFL data project. Odds come from{" "}
+          , a free public NFL data project. Sportsbook lines come from{" "}
           <a className="underline" href="https://the-odds-api.com/" target="_blank" rel="noreferrer">
             The Odds API
           </a>{" "}
-          when configured, aggregated across sportsbooks to the best available price at the
-          consensus line. If no odds feed is configured, the app shows clearly-labeled sample
-          odds instead (built from real stats, but with synthetic lines) so the page still has
-          something to show. Everything refreshes automatically about once a day.
+          when configured, restricted to DraftKings and FanDuel specifically (whichever of the
+          two has the better price for a given line) so what you see matches what you could
+          actually bet, rather than a blended number from books you may not have access to.
+          Kalshi markets, where available for a given player and stat, are pulled directly from{" "}
+          <a className="underline" href="https://kalshi.com/" target="_blank" rel="noreferrer">
+            Kalshi's
+          </a>{" "}
+          public API and shown as a separate row alongside the sportsbook line, so you can
+          compare the two. If no odds source is configured at all, the app shows clearly-labeled
+          sample odds instead (built from real stats, but with synthetic lines) so the page
+          still has something to show. Everything refreshes automatically about once a day.
         </p>
       </Section>
 

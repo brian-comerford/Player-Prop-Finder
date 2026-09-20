@@ -4,6 +4,10 @@ export function sidePrice(prop: Prop, side: "over" | "under"): number | null {
   return side === "over" ? prop.price_over : prop.price_under;
 }
 
+export function sideBook(prop: Prop, side: "over" | "under"): string | null {
+  return side === "over" ? prop.book_over : prop.book_under;
+}
+
 export function sideEdge(prop: Prop, side: "over" | "under"): number | null {
   return side === "over" ? prop.edge_over : prop.edge_under;
 }
