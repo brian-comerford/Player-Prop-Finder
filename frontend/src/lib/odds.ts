@@ -23,3 +23,15 @@ export function sideImpliedProb(prop: Prop, side: "over" | "under"): number | nu
 export function isBinaryMarket(prop: Prop): boolean {
   return prop.market === "player_anytime_td";
 }
+
+// Mirrors scripts/common.py's prob_to_american -- the American odds that
+// would exactly imply a given probability with no vig, e.g. 50% -> -100,
+// 40% -> +150. Used to show the model's own probability in odds terms
+// alongside the book's actual price, for a like-for-like comparison.
+export function probToAmericanOdds(p: number | null): number | null {
+  if (p === null || Number.isNaN(p)) return null;
+  const clamped = Math.min(Math.max(p, 0.01), 0.99);
+  return clamped >= 0.5
+    ? Math.round((-100 * clamped) / (1 - clamped))
+    : Math.round((100 * (1 - clamped)) / clamped);
+}
