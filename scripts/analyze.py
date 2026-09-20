@@ -9,6 +9,7 @@ import json
 import math
 import os
 import statistics
+from collections import Counter
 
 import numpy as np
 import pandas as pd
@@ -339,12 +340,19 @@ def main():
             f"{INACTIVE_GAMES_MISSED_THRESHOLD} games"
         )
 
+    quote_counts = Counter(q["market"] for q in quotes)
+    drop_no_baseline = Counter()
+    drop_team_mismatch = Counter()
+    drop_no_candidates = Counter()
+    anytime_td_samples = []
+
     props = []
     for q in quotes:
         norm_name = normalize_name(q["player_name"])
         key = (norm_name, q["market"])
         base = baselines.get(key)
         if base is None:
+            drop_no_baseline[q["market"]] += 1
             continue
 
         player_team = base["team"]
@@ -355,6 +363,7 @@ def main():
         else:
             # Player's team on file doesn't match either side of this game
             # (likely a stale roster snapshot) -- skip rather than guess.
+            drop_team_mismatch[q["market"]] += 1
             continue
 
         game_info = game_lookup.get(frozenset((player_team, opponent)), {})
@@ -383,8 +392,24 @@ def main():
             if edge is not None
         ]
         if not candidates:
+            drop_no_candidates[q["market"]] += 1
             continue
         recommended_side, recommended_edge = max(candidates, key=lambda x: x[1])
+
+        if q["market"] == "player_anytime_td" and len(anytime_td_samples) < 15:
+            anytime_td_samples.append(
+                {
+                    "player": base["display_name"],
+                    "price_over": q["price_over"],
+                    "price_under": q["price_under"],
+                    "raw_over": round(raw_over, 3) if raw_over is not None else None,
+                    "raw_under": round(raw_under, 3) if raw_under is not None else None,
+                    "novig_over": round(novig_over, 3) if novig_over is not None else None,
+                    "model_over": round(model_over, 3),
+                    "edge_over": round(edge_over, 3) if edge_over is not None else None,
+                    "edge_under": round(edge_under, 3) if edge_under is not None else None,
+                }
+            )
 
         bh_key = (q["market"], base["position"])
         if bh_key not in bottom_half_cache:
@@ -427,6 +452,21 @@ def main():
         )
 
     props.sort(key=lambda p: p["recommended_edge"], reverse=True)
+
+    final_counts = Counter(p["market"] for p in props)
+    print("Per-market quote -> prop funnel:")
+    for mkey in MARKETS:
+        print(
+            f"  {mkey}: {quote_counts.get(mkey, 0)} quotes -> "
+            f"no_baseline={drop_no_baseline.get(mkey, 0)} "
+            f"team_mismatch={drop_team_mismatch.get(mkey, 0)} "
+            f"no_candidates={drop_no_candidates.get(mkey, 0)} -> "
+            f"{final_counts.get(mkey, 0)} final props"
+        )
+    if anytime_td_samples:
+        print("Sample player_anytime_td quotes/edges:")
+        for s in anytime_td_samples:
+            print(f"  {s}")
 
     with open(os.path.join(DATA_DIR, "props.json"), "w") as f:
         json.dump(props, f)
