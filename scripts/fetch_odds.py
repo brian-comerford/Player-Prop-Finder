@@ -107,8 +107,58 @@ def fetch_live(slate, api_key):
             continue
         payload = r.json()
         quotes.extend(_parse_event_odds(payload))
+        _debug_compare_anytime_td_pricing(payload, event, api_key)
         time.sleep(0.25)  # be polite / stay well under rate limits
     return quotes
+
+
+_anytime_td_comparison_logged = False
+
+
+def _debug_compare_anytime_td_pricing(payload, event, api_key):
+    """One-off diagnostic: fetch the player_1st_td market for the same event
+    and print it next to player_anytime_td for a few well-known players, to
+    check a theory that the "anytime TD" prices we're getting back are
+    unrealistically long for their usage (e.g. a true WR1 priced like a
+    longshot) -- which would look exactly like first-TD-scorer or 2+-TD
+    pricing accidentally ending up under the anytime_td market key.
+    """
+    global _anytime_td_comparison_logged
+    if _anytime_td_comparison_logged:
+        return
+    has_anytime_td = any(
+        m["key"] == "player_anytime_td"
+        for bm in payload.get("bookmakers", [])
+        for m in bm.get("markets", [])
+    )
+    if not has_anytime_td:
+        return
+    _anytime_td_comparison_logged = True
+
+    url = f"{ODDS_API_BASE}/sports/{SPORT_KEY}/events/{event['id']}/odds"
+    params = {
+        "apiKey": api_key,
+        "bookmakers": BOOKMAKERS,
+        "markets": "player_1st_td,player_anytime_td",
+        "oddsFormat": ODDS_FORMAT,
+    }
+    try:
+        r = requests.get(url, params=params, timeout=30)
+        r.raise_for_status()
+        compare_payload = r.json()
+    except requests.RequestException as exc:
+        print(f"  [debug] anytime_td/1st_td comparison fetch failed: {exc}")
+        return
+
+    for bm in compare_payload.get("bookmakers", []):
+        for market in bm.get("markets", []):
+            if market["key"] not in ("player_1st_td", "player_anytime_td"):
+                continue
+            outcomes = market.get("outcomes", [])
+            print(
+                f"  [debug] {bm.get('key')} {market['key']} outcomes (first 8): "
+                f"{outcomes[:8]}"
+            )
 
 
 def _parse_event_odds(payload):
