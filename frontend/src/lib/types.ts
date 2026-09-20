@@ -44,4 +44,5 @@ export interface Meta {
   odds_fetched_at: string;
   prop_count: number;
   markets: Record<string, string>;
+  inactive_players_excluded: number;
 }

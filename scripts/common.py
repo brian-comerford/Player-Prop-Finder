@@ -11,6 +11,16 @@ NFLVERSE_GAMES_URL = (
     "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv"
 )
 
+
+def nflverse_pbp_url(season):
+    """Play-by-play is nflverse's most actively-maintained feed -- unlike the
+    pre-aggregated player_stats release (which can lag real time by a season
+    or more), pbp for the current season is updated as games are played. We
+    use it only as a lightweight "did this player take any snap recently"
+    signal (see scripts/analyze.py), not to recompute full stat lines.
+    """
+    return f"https://github.com/nflverse/nflverse-data/releases/download/pbp/play_by_play_{season}.csv"
+
 # Maps nflverse's 2-3 letter team codes to the full team names used by
 # The Odds API (and most sportsbook feeds).
 TEAM_CODE_TO_NAME = {

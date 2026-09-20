@@ -35,6 +35,13 @@ export default function InfoPage() {
           sizes, injuries, and last-minute usage changes can all make the model wrong. Treat it
           as a starting point for your own research, not a signal to bet on by itself.
         </p>
+        <p>
+          Before any of that, every player is checked against real play-by-play data for a
+          confirmed recent snap. A player who hasn't taken a snap in roughly the last month
+          (injury, retirement, or otherwise) is left out entirely, no matter how good their
+          older stats look &mdash; a strong game log from a year ago doesn't mean much if
+          they're not actually playing right now.
+        </p>
       </Section>
 
       <Section title="Table columns">
