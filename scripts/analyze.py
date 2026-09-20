@@ -386,16 +386,6 @@ def main():
         edge_over = (model_over - novig_over) if novig_over is not None else None
         edge_under = (model_under - novig_under) if novig_under is not None else None
 
-        candidates = [
-            (side, edge)
-            for side, edge in (("over", edge_over), ("under", edge_under))
-            if edge is not None
-        ]
-        if not candidates:
-            drop_no_candidates[q["market"]] += 1
-            continue
-        recommended_side, recommended_edge = max(candidates, key=lambda x: x[1])
-
         if q["market"] == "player_anytime_td" and len(anytime_td_samples) < 15:
             anytime_td_samples.append(
                 {
@@ -410,6 +400,16 @@ def main():
                     "edge_under": round(edge_under, 3) if edge_under is not None else None,
                 }
             )
+
+        candidates = [
+            (side, edge)
+            for side, edge in (("over", edge_over), ("under", edge_under))
+            if edge is not None
+        ]
+        if not candidates:
+            drop_no_candidates[q["market"]] += 1
+            continue
+        recommended_side, recommended_edge = max(candidates, key=lambda x: x[1])
 
         bh_key = (q["market"], base["position"])
         if bh_key not in bottom_half_cache:
