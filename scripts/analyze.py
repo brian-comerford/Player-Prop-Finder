@@ -9,6 +9,7 @@ import json
 import math
 import os
 import re
+import statistics
 
 import numpy as np
 import pandas as pd
@@ -21,6 +22,12 @@ MIN_GAMES = 3
 DEFENSE_FACTOR_BOUNDS = (0.75, 1.25)
 MIN_ROWS_FOR_POSITION_FACTOR = 8
 TD_PROB_BOUNDS = (0.02, 0.95)
+
+TREND_WINDOW = 10
+TREND_MIN_GAMES = 4
+TREND_MIN_HIT_RATE = 0.7
+MATCHUP_TREND_MIN_GAMES = 3
+MATCHUP_TREND_MIN_HIT_RATE = 0.7
 
 USAGE_MIN = {
     "player_pass_yds": ("attempts", 5),
@@ -80,9 +87,9 @@ def build_player_baselines(stats_df):
 
             mean, std, n = weighted_mean_std(per_game)
             floor = max(std, 0.2 * abs(mean), 0.5 if not cfg.get("binary") else 0.03)
-            recent = rows.head(8)[["season", "week", "opponent_team"] + cfg["stat_cols"]].copy()
-            recent["value"] = recent[cfg["stat_cols"]].sum(axis=1)
-            recent_games = recent[["season", "week", "opponent_team", "value"]].to_dict("records")
+            game_log_df = rows[["season", "week", "opponent_team"]].copy()
+            game_log_df["value"] = per_game
+            game_log = game_log_df.to_dict("records")
 
             baselines[(norm_name, mkey)] = {
                 "mean": mean,
@@ -91,7 +98,8 @@ def build_player_baselines(stats_df):
                 "team": group["recent_team"].iloc[0],
                 "position": position,
                 "display_name": display_name,
-                "recent_games": recent_games,
+                "game_log": game_log,
+                "recent_games": game_log[:8],
             }
     return baselines, team_by_player
 
@@ -154,6 +162,58 @@ def defense_factor_for(defense_factors, market, position, opponent):
     return market_factors.get("overall", {}).get(opponent, 1.0)
 
 
+def bottom_half_teams(defense_factors, market, position):
+    """Teams whose defense-factor for this market/position is at or above
+    the league median -- i.e. they allow more of this stat than a typical
+    defense, so they'd be ranked in the bottom half defensively.
+    """
+    market_factors = defense_factors.get(market, {})
+    factors = market_factors.get("by_position", {}).get(position) or market_factors.get("overall", {})
+    if not factors:
+        return set()
+    median = statistics.median(factors.values())
+    return {team for team, factor in factors.items() if factor >= median}
+
+
+def build_trend_insights(game_log, cfg, line, side, bottom_half_set):
+    """Notable, plain-English hit-rate patterns for the recommended side,
+    e.g. "Over 3.5 receptions in 4 of last 5 games" or the same measured
+    only against bottom-half defenses. Returns [] when nothing clears the
+    bar -- most players won't have a notable trend, and that's fine.
+    """
+    if not game_log:
+        return []
+
+    binary = cfg.get("binary", False)
+
+    def is_hit(value):
+        if binary:
+            return value > 0 if side == "over" else value <= 0
+        return value > line if side == "over" else value < line
+
+    if binary:
+        verb = "Scored a TD" if side == "over" else "Held without a TD"
+    else:
+        verb = f"{'Over' if side == 'over' else 'Under'} {line} {cfg['noun']}"
+
+    insights = []
+
+    window = game_log[:TREND_WINDOW]
+    n = len(window)
+    hits = sum(1 for g in window if is_hit(g["value"]))
+    if n >= TREND_MIN_GAMES and hits / n >= TREND_MIN_HIT_RATE:
+        insights.append(f"{verb} in {hits} of last {n} games")
+
+    matchup_games = [g for g in game_log if g["opponent_team"] in bottom_half_set]
+    if matchup_games != window:
+        m = len(matchup_games)
+        m_hits = sum(1 for g in matchup_games if is_hit(g["value"]))
+        if m >= MATCHUP_TREND_MIN_GAMES and m_hits / m >= MATCHUP_TREND_MIN_HIT_RATE:
+            insights.append(f"{verb} in {m_hits} of {m} games vs. bottom-half defenses")
+
+    return insights
+
+
 def confidence_label(games, mean, std):
     cv = std / mean if mean else 1.0
     if games >= 8 and cv < 0.6:
@@ -182,6 +242,7 @@ def main():
 
     baselines, team_by_player = build_player_baselines(stats_df)
     defense_factors = build_defense_factors(stats_df)
+    bottom_half_cache = {}
 
     props = []
     for q in quotes:
@@ -228,6 +289,13 @@ def main():
             continue
         recommended_side, recommended_edge = max(candidates, key=lambda x: x[1])
 
+        bh_key = (q["market"], base["position"])
+        if bh_key not in bottom_half_cache:
+            bottom_half_cache[bh_key] = bottom_half_teams(defense_factors, q["market"], base["position"])
+        trends = build_trend_insights(
+            base["game_log"], cfg, q["point"], recommended_side, bottom_half_cache[bh_key]
+        )
+
         props.append(
             {
                 "player_name": base["display_name"],
@@ -253,6 +321,7 @@ def main():
                 "sample_games": base["games"],
                 "confidence": confidence_label(base["games"], base["mean"], base["std"]),
                 "recent_games": base["recent_games"],
+                "trends": trends,
             }
         )
 

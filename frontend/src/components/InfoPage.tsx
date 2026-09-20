@@ -79,6 +79,31 @@ export default function InfoPage() {
         </dl>
       </Section>
 
+      <Section title="The trend arrow next to a player's name">
+        <p>
+          A small arrow appears next to a player's name when there's a notable hit-rate pattern
+          worth knowing &mdash; tap it to expand. It only shows up when the model finds one, so
+          most rows won't have it. Two kinds of trends can appear:
+        </p>
+        <ul className="ml-4 list-disc space-y-1">
+          <li>
+            <strong>Recent form</strong>, e.g. "Over 3.5 receptions in 8 of last 10 games"
+            &mdash; how often the player would have cleared today's line over their last 10
+            games.
+          </li>
+          <li>
+            <strong>Matchup-specific</strong>, e.g. "Over 3.5 receptions in 6 of 7 games vs.
+            bottom-half defenses" &mdash; the same idea, narrowed to games against defenses that
+            rank in the bottom half for this stat and position (see Opponent factor below).
+          </li>
+        </ul>
+        <p>
+          These are descriptive hit-rate stats, not a separate prediction &mdash; they're there
+          to show your own eyes the pattern behind the model's number, so you can judge whether
+          it's a real trend or a coincidence.
+        </p>
+      </Section>
+
       <Section title="Inside the detail view">
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Term term="Projection">

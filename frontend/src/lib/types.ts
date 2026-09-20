@@ -32,6 +32,7 @@ export interface Prop {
   sample_games: number;
   confidence: Confidence;
   recent_games: RecentGame[];
+  trends: string[];
 }
 
 export interface Meta {

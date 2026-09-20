@@ -58,42 +58,49 @@ TEAM_NAME_TO_CODE = {v: k for k, v in TEAM_CODE_TO_NAME.items() if k not in ("OA
 MARKETS = {
     "player_pass_yds": {
         "label": "Passing Yards",
+        "noun": "passing yards",
         "stat_cols": ["passing_yards"],
         "usage_col": "attempts",
         "position_group": {"QB"},
     },
     "player_pass_tds": {
         "label": "Passing TDs",
+        "noun": "passing TDs",
         "stat_cols": ["passing_tds"],
         "usage_col": "attempts",
         "position_group": {"QB"},
     },
     "player_rush_yds": {
         "label": "Rushing Yards",
+        "noun": "rushing yards",
         "stat_cols": ["rushing_yards"],
         "usage_col": "carries",
         "position_group": {"RB", "QB", "WR"},
     },
     "player_receptions": {
         "label": "Receptions",
+        "noun": "receptions",
         "stat_cols": ["receptions"],
         "usage_col": "targets",
         "position_group": {"WR", "TE", "RB"},
     },
     "player_reception_yds": {
         "label": "Receiving Yards",
+        "noun": "receiving yards",
         "stat_cols": ["receiving_yards"],
         "usage_col": "targets",
         "position_group": {"WR", "TE", "RB"},
     },
     "player_rush_reception_yds": {
         "label": "Rush + Rec Yards",
+        "noun": "rush+rec yards",
         "stat_cols": ["rushing_yards", "receiving_yards"],
         "usage_col": None,  # combined usage handled specially
         "position_group": {"RB", "WR", "TE"},
     },
     "player_anytime_td": {
         "label": "Anytime TD",
+        "noun": "TD",
         # Anytime TD scorer markets pay out on the player rushing or
         # receiving for a score -- a QB's own passing TDs don't count here
         # (that's the separate player_pass_tds market above).
