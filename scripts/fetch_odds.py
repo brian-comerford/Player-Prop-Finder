@@ -139,7 +139,11 @@ def _parse_event_odds(payload):
                     (point, price, bm.get("key"))
                 )
 
-    _WATCH_PLAYERS = {"Bijan Robinson", "Christian McCaffrey", "Ja'Marr Chase", "Justin Jefferson"}
+    # Any single (point, price, book) entry longer than this for a "Yes"
+    # anytime-TD outcome is implausible for a real everyday NFL player --
+    # used only to flag entries worth a closer look in the logs, not to
+    # filter anything out.
+    _IMPLAUSIBLE_ANYTIME_TD_PRICE = 1500
 
     quotes = []
     for mkey, players in buckets.items():
@@ -148,7 +152,9 @@ def _parse_event_odds(payload):
             if binary:
                 yes = sides.get("yes", [])
                 no = sides.get("no", [])
-                if mkey == "player_anytime_td" and player in _WATCH_PLAYERS:
+                if mkey == "player_anytime_td" and any(
+                    pr is not None and pr > _IMPLAUSIBLE_ANYTIME_TD_PRICE for _, pr, _ in yes
+                ):
                     print(f"  [debug] {player} anytime_td: all yes={yes} all no={no}")
                 if not yes:
                     continue
