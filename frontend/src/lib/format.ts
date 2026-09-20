@@ -23,12 +23,12 @@ export function formatPct(value: number | null, digits = 1): string {
 }
 
 // Same as formatPct, but appends the approximate American odds that
-// probability implies, e.g. "50.0% (~-100)" -- lets a probability be
+// probability implies, e.g. "50.0% (-100)" -- lets a probability be
 // compared directly against a book's posted price at a glance.
 export function formatPctWithOdds(value: number | null, digits = 1): string {
   if (value === null || Number.isNaN(value)) return "—";
   const odds = probToAmericanOdds(value);
-  const suffix = odds === null ? "" : ` (~${formatOdds(odds)})`;
+  const suffix = odds === null ? "" : ` (${formatOdds(odds)})`;
   return `${(value * 100).toFixed(digits)}%${suffix}`;
 }
 
