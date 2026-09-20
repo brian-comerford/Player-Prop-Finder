@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import type { Prop } from "../lib/types";
-import { formatBook, formatLine, formatOdds, formatPct } from "../lib/format";
+import { formatBook, formatLine, formatOdds, formatPct, formatPctWithOdds } from "../lib/format";
 import { isBinaryMarket, sideBook, sideEdge, sideImpliedProb, sideModelProb, sidePrice } from "../lib/odds";
 
 const BAR_UP = "#22c55e";
@@ -52,7 +52,7 @@ export default function PropDetail({ prop, onClose }: { prop: Prop; onClose: () 
           <Stat label={`${binary ? "Yes" : side.toUpperCase()} odds`} value={formatOdds(sidePrice(prop, side))} />
           <Stat label="Source" value={formatBook(sideBook(prop, side))} />
           <Stat label="Edge" value={formatPct(sideEdge(prop, side))} highlight />
-          <Stat label="Model probability" value={formatPct(sideModelProb(prop, side))} />
+          <Stat label="Model probability" value={formatPctWithOdds(sideModelProb(prop, side))} />
           <Stat label="Book implied (no-vig)" value={formatPct(sideImpliedProb(prop, side))} />
           <Stat label="Opponent factor" value={`${prop.defense_factor}x`} />
           <Stat label="Confidence" value={`${prop.confidence} (${prop.sample_games}g)`} />

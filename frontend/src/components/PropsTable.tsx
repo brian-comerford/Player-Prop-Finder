@@ -7,6 +7,7 @@ import {
   formatLine,
   formatOdds,
   formatPct,
+  formatPctWithOdds,
 } from "../lib/format";
 import { isBinaryMarket, sideBook, sideEdge, sideImpliedProb, sideModelProb, sidePrice } from "../lib/odds";
 
@@ -113,7 +114,7 @@ export default function PropsTable({
                     {formatBook(sideBook(p, side))}
                   </td>
                   <td className="px-3 py-2">{formatOdds(sidePrice(p, side))}</td>
-                  <td className="px-3 py-2">{formatPct(sideModelProb(p, side))}</td>
+                  <td className="px-3 py-2">{formatPctWithOdds(sideModelProb(p, side))}</td>
                   <td className="px-3 py-2">{formatPct(sideImpliedProb(p, side))}</td>
                   <td className={`px-3 py-2 ${edgeColorClass(sideEdge(p, side) ?? 0)}`}>
                     {formatPct(sideEdge(p, side))}
