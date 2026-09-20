@@ -26,6 +26,7 @@ import json
 import os
 import random
 import time
+from collections import Counter
 
 import pandas as pd
 import requests
@@ -291,6 +292,11 @@ def main():
             quotes = fetch_live(slate, api_key)
             if quotes:
                 source = "live"
+                by_market = Counter(q["market"] for q in quotes)
+                print(f"  live quotes by market: {dict(by_market)}")
+                missing = [m for m in MARKETS if by_market[m] == 0]
+                if missing:
+                    print(f"  no live quotes at all for: {missing}")
             else:
                 print("Live odds call returned no player-prop quotes; falling back to sample data.")
         except requests.RequestException as exc:
