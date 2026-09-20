@@ -448,6 +448,26 @@ def main():
             f"{final_counts.get(mkey, 0)} final props"
         )
 
+    anytime_td_props = sorted(
+        (p for p in props if p["market"] == "player_anytime_td" and p["price_over"] is not None),
+        key=lambda p: p["price_over"],
+    )
+    if anytime_td_props:
+        print("Shortest anytime_td prices (most likely to score):")
+        for p in anytime_td_props[:10]:
+            print(
+                f"  {p['player_name']} ({p['position']}, {p['team']} vs {p['opponent']}): "
+                f"{p['price_over']} via {p['book_over']}, sample_games={p['sample_games']}, "
+                f"projected={p['projected_value']}"
+            )
+        print("Longest anytime_td prices (least likely to score):")
+        for p in anytime_td_props[-10:]:
+            print(
+                f"  {p['player_name']} ({p['position']}, {p['team']} vs {p['opponent']}): "
+                f"{p['price_over']} via {p['book_over']}, sample_games={p['sample_games']}, "
+                f"projected={p['projected_value']}"
+            )
+
     with open(os.path.join(DATA_DIR, "props.json"), "w") as f:
         json.dump(props, f)
 
