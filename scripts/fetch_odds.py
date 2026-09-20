@@ -156,6 +156,12 @@ def _parse_event_odds(payload):
             if binary:
                 yes = sides.get("yes", [])
                 no = sides.get("no", [])
+                if mkey == "player_anytime_td" and player in (
+                    "Jaylen Warren",
+                    "Pat Freiermuth",
+                    "Justin Jefferson",
+                ):
+                    print(f"  [debug] {player} anytime_td buckets: yes={yes} no={no}")
                 if not yes:
                     continue
                 price_yes, book_yes = _best_price(yes)
