@@ -17,7 +17,8 @@ Either way the output is a flat list of "quotes":
   price_over, price_under,   # American odds; price_over/price_under are
                               # reused as price_yes/price_no for the
                               # binary "anytime_td" market
-  book
+  book_over, book_under      # which book each price came from, e.g.
+                              # "draftkings" / "fanduel" / "kalshi" / "sample"
 }
 written to data/odds_quotes.json alongside data/odds_meta.json.
 """
@@ -30,10 +31,15 @@ import pandas as pd
 import requests
 
 from common import DATA_DIR, MARKETS, TEAM_CODE_TO_NAME, TEAM_NAME_TO_CODE, utcnow_iso
+from kalshi import fetch_kalshi_quotes
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 SPORT_KEY = "americanfootball_nfl"
-REGIONS = "us"
+# Restricted to the two books most people can actually bet on, rather than
+# whatever else The Odds API's broader "us" region happens to aggregate --
+# see the "book_over"/"book_under" fields for which of the two a given
+# price came from.
+BOOKMAKERS = "draftkings,fanduel"
 ODDS_FORMAT = "american"
 
 
@@ -55,11 +61,17 @@ def fetch_live(slate, api_key):
     resp.raise_for_status()
     events = resp.json()
 
-    slate_team_names = set(slate["home_team"].map(TEAM_CODE_TO_NAME)) | set(
-        slate["away_team"].map(TEAM_CODE_TO_NAME)
-    )
+    # Match the exact matchup, not just "both teams appear somewhere in the
+    # slate" -- books post lines for future weeks too, and two teams that
+    # are each playing this week aren't necessarily playing *each other*
+    # this week, which was silently pulling in (and paying credits for)
+    # other weeks' games.
+    slate_matchups = {
+        frozenset((TEAM_CODE_TO_NAME.get(g.home_team), TEAM_CODE_TO_NAME.get(g.away_team)))
+        for g in slate.itertuples()
+    }
     relevant_events = [
-        e for e in events if e["home_team"] in slate_team_names and e["away_team"] in slate_team_names
+        e for e in events if frozenset((e["home_team"], e["away_team"])) in slate_matchups
     ]
     print(f"Found {len(relevant_events)} relevant events out of {len(events)} total")
 
@@ -68,7 +80,7 @@ def fetch_live(slate, api_key):
         url = f"{ODDS_API_BASE}/sports/{SPORT_KEY}/events/{event['id']}/odds"
         params = {
             "apiKey": api_key,
-            "regions": REGIONS,
+            "bookmakers": BOOKMAKERS,
             "markets": market_keys,
             "oddsFormat": ODDS_FORMAT,
         }
@@ -135,8 +147,8 @@ def _parse_event_odds(payload):
                 no = sides.get("no", [])
                 if not yes:
                     continue
-                price_yes = max(p for _, p, _ in yes)
-                price_no = max((p for _, p, _ in no), default=None)
+                price_yes, book_yes = _best_price(yes)
+                price_no, book_no = _best_price(no) if no else (None, None)
                 quotes.append(
                     {
                         "player_name": player,
@@ -146,7 +158,8 @@ def _parse_event_odds(payload):
                         "point": None,
                         "price_over": price_yes,
                         "price_under": price_no,
-                        "book": "best_available",
+                        "book_over": book_yes,
+                        "book_under": book_no,
                     }
                 )
                 continue
@@ -159,10 +172,12 @@ def _parse_event_odds(payload):
             if not points:
                 continue
             consensus_point = sorted(points)[len(points) // 2]  # median
-            over_at_point = [pr for pt, pr, _ in over if pt == consensus_point]
-            under_at_point = [pr for pt, pr, _ in under if pt == consensus_point]
+            over_at_point = [(pr, bk) for pt, pr, bk in over if pt == consensus_point]
+            under_at_point = [(pr, bk) for pt, pr, bk in under if pt == consensus_point]
             if not over_at_point or not under_at_point:
                 continue
+            price_over, book_over = max(over_at_point, key=lambda x: x[0])
+            price_under, book_under = max(under_at_point, key=lambda x: x[0])
             quotes.append(
                 {
                     "player_name": player,
@@ -170,12 +185,20 @@ def _parse_event_odds(payload):
                     "away_team": away_code,
                     "market": mkey,
                     "point": consensus_point,
-                    "price_over": max(over_at_point),
-                    "price_under": max(under_at_point),
-                    "book": "best_available",
+                    "price_over": price_over,
+                    "price_under": price_under,
+                    "book_over": book_over,
+                    "book_under": book_under,
                 }
             )
     return quotes
+
+
+def _best_price(entries):
+    """`entries` is a list of (point, price, book); returns the most
+    bettor-favorable (price, book) pair."""
+    price, _, book = max(entries, key=lambda e: e[1])
+    return price, book
 
 
 def generate_sample(slate, stats_df):
@@ -216,7 +239,8 @@ def generate_sample(slate, stats_df):
                         "point": None,
                         "price_over": price_yes,
                         "price_under": None,
-                        "book": "sample",
+                        "book_over": "sample",
+                        "book_under": None,
                     }
                 )
                 continue
@@ -239,7 +263,8 @@ def generate_sample(slate, stats_df):
                     "point": line,
                     "price_over": price_over,
                     "price_under": price_under,
-                    "book": "sample",
+                    "book_over": "sample",
+                    "book_under": "sample",
                 }
             )
     return quotes
@@ -274,13 +299,29 @@ def main():
     if source == "sample" and not slate.empty:
         quotes = generate_sample(slate, stats_df)
 
+    kalshi_quotes = []
+    if not slate.empty:
+        try:
+            kalshi_quotes = fetch_kalshi_quotes(slate, stats_df)
+        except Exception as exc:  # best-effort supplementary source; never break the run over it
+            print(f"Kalshi fetch failed ({type(exc).__name__}: {exc}); continuing without it.")
+    quotes = quotes + kalshi_quotes
+
     with open(os.path.join(DATA_DIR, "odds_quotes.json"), "w") as f:
         json.dump(quotes, f)
 
     with open(os.path.join(DATA_DIR, "odds_meta.json"), "w") as f:
-        json.dump({"source": source, "fetched_at": utcnow_iso(), "quote_count": len(quotes)}, f)
+        json.dump(
+            {
+                "source": source,
+                "fetched_at": utcnow_iso(),
+                "quote_count": len(quotes),
+                "kalshi_quote_count": len(kalshi_quotes),
+            },
+            f,
+        )
 
-    print(f"Wrote {len(quotes)} odds quotes (source={source})")
+    print(f"Wrote {len(quotes)} odds quotes (source={source}, {len(kalshi_quotes)} from Kalshi)")
 
 
 if __name__ == "__main__":

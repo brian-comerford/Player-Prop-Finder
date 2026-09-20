@@ -8,14 +8,20 @@ Output: data/props.json (the list the frontend renders) and data/meta.json
 import json
 import math
 import os
-import re
 import statistics
 
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
-from common import DATA_DIR, MARKETS, american_to_implied_prob, remove_vig_two_way, utcnow_iso
+from common import (
+    DATA_DIR,
+    MARKETS,
+    american_to_implied_prob,
+    normalize_name,
+    remove_vig_two_way,
+    utcnow_iso,
+)
 
 RECENCY_DECAY = 0.88
 MIN_GAMES = 3
@@ -52,10 +58,6 @@ USAGE_MIN = {
     "player_rush_reception_yds": (None, 0),
     "player_anytime_td": (None, 0),
 }
-
-
-def normalize_name(name):
-    return re.sub(r"[^a-z]", "", str(name).lower())
 
 
 def weighted_mean_std(values, decay=RECENCY_DECAY):
@@ -346,7 +348,8 @@ def main():
                 "market": q["market"],
                 "market_label": cfg["label"],
                 "line": q["point"],
-                "book": q["book"],
+                "book_over": q["book_over"],
+                "book_under": q["book_under"],
                 "price_over": q["price_over"],
                 "price_under": q["price_under"],
                 "model_prob_over": round(model_over, 4),

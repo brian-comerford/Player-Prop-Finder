@@ -1,10 +1,20 @@
 import { Fragment, useState } from "react";
 import type { Prop } from "../lib/types";
-import { confidenceColorClass, edgeColorClass, formatLine, formatOdds, formatPct } from "../lib/format";
-import { isBinaryMarket, sideEdge, sideImpliedProb, sideModelProb, sidePrice } from "../lib/odds";
+import {
+  confidenceColorClass,
+  edgeColorClass,
+  formatBook,
+  formatLine,
+  formatOdds,
+  formatPct,
+} from "../lib/format";
+import { isBinaryMarket, sideBook, sideEdge, sideImpliedProb, sideModelProb, sidePrice } from "../lib/odds";
 
 function propKey(p: Prop): string {
-  return `${p.player_name}-${p.market}`;
+  // The same player/market can appear once per book (e.g. a DraftKings
+  // line and a separate Kalshi line), so the book has to be part of the
+  // key or those rows collide.
+  return `${p.player_name}-${p.market}-${p.book_over}`;
 }
 
 export default function PropsTable({
@@ -45,6 +55,7 @@ export default function PropsTable({
             <th className="px-3 py-2 font-medium">Market</th>
             <th className="px-3 py-2 font-medium">Line</th>
             <th className="px-3 py-2 font-medium">Pick</th>
+            <th className="px-3 py-2 font-medium">Book</th>
             <th className="px-3 py-2 font-medium">Odds</th>
             <th className="px-3 py-2 font-medium">Model %</th>
             <th className="px-3 py-2 font-medium">Book %</th>
@@ -97,6 +108,9 @@ export default function PropsTable({
                   <td className="px-3 py-2">{p.market_label}</td>
                   <td className="px-3 py-2">{formatLine(p.line)}</td>
                   <td className="px-3 py-2 uppercase">{binary ? "Yes" : side}</td>
+                  <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+                    {formatBook(sideBook(p, side))}
+                  </td>
                   <td className="px-3 py-2">{formatOdds(sidePrice(p, side))}</td>
                   <td className="px-3 py-2">{formatPct(sideModelProb(p, side))}</td>
                   <td className="px-3 py-2">{formatPct(sideImpliedProb(p, side))}</td>
@@ -113,7 +127,7 @@ export default function PropsTable({
                 </tr>
                 {hasTrends && isExpanded && (
                   <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800/60 dark:bg-slate-900/40">
-                    <td colSpan={9} className="px-3 py-2 pl-11">
+                    <td colSpan={10} className="px-3 py-2 pl-11">
                       <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
                         {p.trends.map((trend, i) => (
                           <li key={i} className="flex items-start gap-1.5">

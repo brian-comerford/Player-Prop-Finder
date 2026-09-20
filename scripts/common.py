@@ -1,6 +1,7 @@
 """Shared constants and helpers for the data pipeline."""
 import datetime as dt
 import os
+import re
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
@@ -180,3 +181,15 @@ def remove_vig_two_way(prob_a, prob_b):
 
 def utcnow_iso():
     return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def normalize_name(name):
+    return re.sub(r"[^a-z]", "", str(name).lower())
+
+
+def prob_to_american(p):
+    """Convert a 0-1 probability to the American odds that imply it."""
+    p = min(max(p, 0.01), 0.99)
+    if p >= 0.5:
+        return round(-100 * p / (1 - p))
+    return round(100 * (1 - p) / p)

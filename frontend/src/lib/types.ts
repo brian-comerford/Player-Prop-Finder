@@ -16,7 +16,8 @@ export interface Prop {
   market: string;
   market_label: string;
   line: number | null;
-  book: string;
+  book_over: string | null;
+  book_under: string | null;
   price_over: number | null;
   price_under: number | null;
   model_prob_over: number;
