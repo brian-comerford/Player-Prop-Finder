@@ -56,6 +56,22 @@ export default function PropDetail({ prop, onClose }: { prop: Prop; onClose: () 
           <Stat label="Confidence" value={`${prop.confidence} (${prop.sample_games}g)`} />
         </div>
 
+        {prop.trends.length > 0 && (
+          <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+            <p className="mb-1.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">
+              Notable trends
+            </p>
+            <ul className="space-y-1 text-sm text-emerald-900 dark:text-emerald-200">
+              {prop.trends.map((trend, i) => (
+                <li key={i} className="flex items-start gap-1.5">
+                  <span className="mt-0.5">&#8226;</span>
+                  <span>{trend}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {!binary && chartData.length > 0 && (
           <div className="h-56 w-full">
             <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">
