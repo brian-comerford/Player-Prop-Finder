@@ -37,14 +37,20 @@ STAT_KEYWORDS = [
 ]
 
 THRESHOLD_RE = re.compile(r"(\d+(?:\.\d+)?)")
-NFL_HINT_WORDS = ("nfl", "reception", "receiving yard", "rushing yard", "passing yard", "touchdown")
+# Used to decide whether a *market* (not just its parent event) is even a
+# candidate stat-threshold prop worth trying to match a player against --
+# deliberately the same phrases _match_market looks for, since a market
+# without one of these can never match anyway. Filtering on this instead
+# of a bare "nfl" substring matters: NFL-adjacent tickers like
+# "KXNFLENDSTREAK" (a team playoff-drought market) contain "nfl" as a
+# coincidental substring but aren't player props, and were being pulled in
+# as false positives before this was tightened.
+STAT_PHRASES = tuple(phrase for phrase, _ in STAT_KEYWORDS)
 
 
 def fetch_kalshi_quotes(slate, stats_df):
-    events = _fetch_candidate_events()
-    print(f"Kalshi: found {len(events)} candidate events after keyword filtering")
-    if not events:
-        return []
+    events = _fetch_open_events()
+    print(f"Kalshi: fetched {len(events)} open events total")
 
     team_codes = set(slate["home_team"]) | set(slate["away_team"])
     opponent_of = {}
@@ -55,15 +61,17 @@ def fetch_kalshi_quotes(slate, stats_df):
     player_lookup = _build_player_lookup(stats_df, team_codes)
     print(f"Kalshi: matching against {len(player_lookup)} active players from this week's teams")
 
+    candidate_titles = []
     quotes = []
-    logged_sample = False
     for event in events:
         for market in event.get("markets", []):
-            if not logged_sample:
-                print(f"Kalshi: sample market payload -> {market}")
-                logged_sample = True
-
             title = market.get("title") or market.get("subtitle") or market.get("yes_sub_title") or ""
+            lower_title = title.lower()
+            if not any(phrase in lower_title for phrase in STAT_PHRASES):
+                continue
+            if len(candidate_titles) < 30:
+                candidate_titles.append(title)
+
             match = _match_market(title, player_lookup)
             if match is None:
                 continue
@@ -91,15 +99,21 @@ def fetch_kalshi_quotes(slate, stats_df):
                 }
             )
 
+    print(f"Kalshi: {len(candidate_titles)} markets mention a tracked stat; sample titles: {candidate_titles[:10]}")
     print(f"Kalshi: matched {len(quotes)} player-prop quotes")
     return quotes
 
 
-def _fetch_candidate_events():
+def _fetch_open_events():
     events = []
     cursor = None
     for _ in range(MAX_EVENT_PAGES):
-        params = {"status": "open", "with_nested_markets": "true", "limit": EVENTS_PER_PAGE}
+        params = {
+            "status": "open",
+            "with_nested_markets": "true",
+            "limit": EVENTS_PER_PAGE,
+            "category": "Sports",
+        }
         if cursor:
             params["cursor"] = cursor
         resp = requests.get(f"{KALSHI_BASE}/events", params=params, timeout=30)
@@ -110,14 +124,7 @@ def _fetch_candidate_events():
         cursor = payload.get("cursor")
         if not cursor or not page:
             break
-
-    def is_relevant(event):
-        haystack = " ".join(
-            str(event.get(field, "")) for field in ("title", "category", "sub_title", "series_ticker")
-        ).lower()
-        return any(word in haystack for word in NFL_HINT_WORDS)
-
-    return [e for e in events if is_relevant(e)]
+    return events
 
 
 def _build_player_lookup(stats_df, team_codes):
@@ -167,9 +174,17 @@ def _match_market(title, player_lookup):
 
 def _extract_probability(market):
     """Returns a 0-1 probability from whichever price field is populated,
-    preferring the last traded price over a resting bid/ask quote."""
-    for field in ("last_price", "yes_bid", "yes_ask"):
+    preferring the last traded price over a resting bid/ask quote. Kalshi
+    returns these as dollar-denominated strings, e.g. "0.2500" for a
+    market trading at 25 cents (25% implied), not raw integer cents."""
+    for field in ("last_price_dollars", "previous_price_dollars", "yes_bid_dollars", "yes_ask_dollars"):
         value = market.get(field)
-        if value:
-            return max(0.01, min(0.99, value / 100.0))
+        if not value:
+            continue
+        try:
+            price = float(value)
+        except (TypeError, ValueError):
+            continue
+        if price > 0:
+            return max(0.01, min(0.99, price))
     return None
