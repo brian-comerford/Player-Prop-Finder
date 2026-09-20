@@ -89,7 +89,12 @@ export default function InfoPage() {
             How much the upcoming opponent inflates or suppresses this stat compared to a
             league-average defense, e.g. 1.15x means that defense allows about 15% more of
             this stat than average. Capped to a modest range so one unusual game can't swing it
-            too far.
+            too far. Computed specifically for the player's own position when there's enough
+            sample &mdash; e.g. a defense's rushing/receiving-TD funnel to running backs is
+            judged separately from its funnel to wide receivers and tight ends, so a running
+            back's receiving production is compared to what that defense allows to running
+            backs, not to wideouts. Falls back to an all-positions blended factor when the
+            position-specific sample is too thin.
           </Term>
         </dl>
       </Section>
