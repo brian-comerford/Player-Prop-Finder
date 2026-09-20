@@ -139,12 +139,6 @@ def _parse_event_odds(payload):
                     (point, price, bm.get("key"))
                 )
 
-    # Any single (point, price, book) entry longer than this for a "Yes"
-    # anytime-TD outcome is implausible for a real everyday NFL player --
-    # used only to flag entries worth a closer look in the logs, not to
-    # filter anything out.
-    _IMPLAUSIBLE_ANYTIME_TD_PRICE = 1500
-
     quotes = []
     for mkey, players in buckets.items():
         binary = MARKETS[mkey].get("binary", False)
@@ -152,10 +146,6 @@ def _parse_event_odds(payload):
             if binary:
                 yes = sides.get("yes", [])
                 no = sides.get("no", [])
-                if mkey == "player_anytime_td" and any(
-                    pr is not None and pr > _IMPLAUSIBLE_ANYTIME_TD_PRICE for _, pr, _ in yes
-                ):
-                    print(f"  [debug] {player} anytime_td: all yes={yes} all no={no}")
                 if not yes:
                     continue
                 price_yes, book_yes = _best_price(yes)
