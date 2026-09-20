@@ -139,6 +139,8 @@ def _parse_event_odds(payload):
                     (point, price, bm.get("key"))
                 )
 
+    _WATCH_PLAYERS = {"Bijan Robinson", "Christian McCaffrey", "Ja'Marr Chase", "Justin Jefferson"}
+
     quotes = []
     for mkey, players in buckets.items():
         binary = MARKETS[mkey].get("binary", False)
@@ -146,6 +148,8 @@ def _parse_event_odds(payload):
             if binary:
                 yes = sides.get("yes", [])
                 no = sides.get("no", [])
+                if mkey == "player_anytime_td" and player in _WATCH_PLAYERS:
+                    print(f"  [debug] {player} anytime_td: all yes={yes} all no={no}")
                 if not yes:
                     continue
                 price_yes, book_yes = _best_price(yes)
