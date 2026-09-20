@@ -101,6 +101,7 @@ export default function PropsTable({
                         <div className="font-medium">{p.player_name}</div>
                         <div className="text-xs text-slate-500 dark:text-slate-400">
                           {p.position} &middot; {p.team} vs {p.opponent}
+                          {p.time_slot && <> &middot; {p.time_slot}</>}
                         </div>
                       </div>
                     </div>

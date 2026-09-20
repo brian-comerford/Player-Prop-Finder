@@ -233,6 +233,39 @@ def build_trend_insights(game_log, cfg, line, side, bottom_half_set):
     return insights
 
 
+def classify_time_slot(weekday, gametime):
+    """A human-recognizable NFL broadcast window from a game's weekday and
+    ET kickoff time (games.csv gives both already in Eastern time)."""
+    if weekday == "Thursday":
+        return "Thursday Night"
+    if weekday == "Monday":
+        return "Monday Night"
+    if weekday in ("Friday", "Saturday"):
+        return weekday
+    if weekday == "Sunday":
+        try:
+            hour = int(str(gametime).split(":")[0])
+        except (ValueError, IndexError):
+            return "Sunday"
+        if hour < 14:
+            return "Sunday Early (1:00 PM ET)"
+        if hour < 18:
+            return "Sunday Afternoon"
+        return "Sunday Night"
+    return weekday or "Other"
+
+
+TIME_SLOT_ORDER = [
+    "Thursday Night",
+    "Friday",
+    "Saturday",
+    "Sunday Early (1:00 PM ET)",
+    "Sunday Afternoon",
+    "Sunday Night",
+    "Monday Night",
+]
+
+
 def confidence_label(games, mean, std):
     cv = std / mean if mean else 1.0
     if games >= 8 and cv < 0.6:
@@ -260,6 +293,25 @@ def main():
         quotes = json.load(f)
     with open(os.path.join(DATA_DIR, "player_activity.json")) as f:
         player_activity = json.load(f)
+
+    game_lookup = {}
+    matchup_options = []
+    if season_week["upcoming_season"] is not None:
+        games = pd.read_csv(os.path.join(DATA_DIR, "games_recent.csv"), low_memory=False)
+        slate = games[
+            (games["season"] == season_week["upcoming_season"])
+            & (games["week"] == season_week["upcoming_week"])
+        ].sort_values(["gameday", "gametime"])
+        for g in slate.itertuples():
+            matchup = f"{g.away_team} @ {g.home_team}"
+            time_slot = classify_time_slot(g.weekday, g.gametime)
+            info = {
+                "matchup": matchup,
+                "game_date": g.gameday,
+                "time_slot": time_slot,
+            }
+            game_lookup[frozenset((g.home_team, g.away_team))] = info
+            matchup_options.append(matchup)
 
     baselines, team_by_player = build_player_baselines(stats_df)
     defense_factors = build_defense_factors(stats_df)
@@ -305,6 +357,8 @@ def main():
             # (likely a stale roster snapshot) -- skip rather than guess.
             continue
 
+        game_info = game_lookup.get(frozenset((player_team, opponent)), {})
+
         cfg = MARKETS[q["market"]]
         factor = defense_factor_for(defense_factors, q["market"], base["position"], opponent)
         projected_mean = base["mean"] * factor
@@ -345,6 +399,9 @@ def main():
                 "position": base["position"],
                 "team": player_team,
                 "opponent": opponent,
+                "matchup": game_info.get("matchup"),
+                "game_date": game_info.get("game_date"),
+                "time_slot": game_info.get("time_slot"),
                 "market": q["market"],
                 "market_label": cfg["label"],
                 "line": q["point"],
@@ -384,6 +441,10 @@ def main():
         "prop_count": len(props),
         "markets": {k: v["label"] for k, v in MARKETS.items()},
         "inactive_players_excluded": len(inactive_players),
+        "matchups": matchup_options,
+        "time_slots": [
+            t for t in TIME_SLOT_ORDER if t in {info["time_slot"] for info in game_lookup.values()}
+        ],
     }
     with open(os.path.join(DATA_DIR, "meta.json"), "w") as f:
         json.dump(meta, f)

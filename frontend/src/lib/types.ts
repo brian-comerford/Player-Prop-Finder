@@ -13,6 +13,9 @@ export interface Prop {
   position: string;
   team: string;
   opponent: string;
+  matchup: string | null;
+  game_date: string | null;
+  time_slot: string | null;
   market: string;
   market_label: string;
   line: number | null;
@@ -46,4 +49,6 @@ export interface Meta {
   prop_count: number;
   markets: Record<string, string>;
   inactive_players_excluded: number;
+  matchups: string[];
+  time_slots: string[];
 }
