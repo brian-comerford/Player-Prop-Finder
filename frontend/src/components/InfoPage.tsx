@@ -68,7 +68,7 @@ export default function InfoPage() {
           <Term term="Model %">
             The model's estimated probability that the picked side happens, based on the
             player's recent performance and an opponent-strength adjustment. The number in
-            parentheses (e.g. "50.0% (~-100)") is that same probability converted to the
+            parentheses (e.g. "50.0% (-100)") is that same probability converted to the
             American odds it would imply with no vig &mdash; not a real price from any book,
             just a way to compare the model's view against the book's price in the same units.
           </Term>
