@@ -17,8 +17,11 @@ export default function Banner({ meta }: { meta: Meta }) {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Player Prop Finder</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <img src="logo.png" alt="" className="h-10 w-auto sm:h-12" />
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Player Prop Finder</h1>
+        </div>
         <span className="text-sm text-slate-500 dark:text-slate-400">
           {weekLabel} &middot; updated {timeAgo(meta.generated_at)}
         </span>
