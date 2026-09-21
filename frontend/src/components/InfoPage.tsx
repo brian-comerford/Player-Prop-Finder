@@ -110,7 +110,9 @@ export default function InfoPage() {
           <li>
             <strong>Matchup-specific</strong>, e.g. "Over 3.5 receptions in 6 of 7 games vs.
             bottom-half defenses" &mdash; the same idea, narrowed to games against defenses that
-            rank in the bottom half for this stat and position (see Opponent factor below).
+            rank in the bottom half for this stat and position (see Opponent factor below). For
+            an Under, this instead checks games against top-half defenses, since a tougher
+            defense is what makes an Under more likely to hit.
           </li>
         </ul>
         <p>
