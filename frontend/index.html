@@ -9,6 +9,19 @@
       content="Finds NFL player prop bets that look mispriced by comparing a statistical projection to sportsbook odds."
     />
     <title>Player Prop Finder</title>
+    <script>
+      // Applies any saved light/dark override before first paint, so
+      // there's no flash of the wrong theme. Mirrors src/lib/useTheme.ts.
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var isDark =
+            stored === "dark" ||
+            (stored !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", isDark);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

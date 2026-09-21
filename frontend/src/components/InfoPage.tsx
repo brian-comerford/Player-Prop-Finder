@@ -1,4 +1,11 @@
 import type { ReactNode } from "react";
+import type { ThemeChoice } from "../lib/useTheme";
+
+const THEME_OPTIONS: { value: ThemeChoice; label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -20,9 +27,38 @@ function Term({ term, children }: { term: string; children: ReactNode }) {
   );
 }
 
-export default function InfoPage() {
+export default function InfoPage({
+  theme,
+  onThemeChange,
+}: {
+  theme: ThemeChoice;
+  onThemeChange: (theme: ThemeChoice) => void;
+}) {
   return (
     <div className="space-y-8 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+      <Section title="Appearance">
+        <p>
+          Defaults to your device's own light/dark setting. Override it here if you'd rather
+          this page stay one way regardless of your system theme.
+        </p>
+        <div className="inline-flex overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+          {THEME_OPTIONS.map(({ value, label }) => (
+            <button
+              key={value}
+              onClick={() => onThemeChange(value)}
+              aria-pressed={theme === value}
+              className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                theme === value
+                  ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                  : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </Section>
+
       <Section title="What this page is doing">
         <p>
           For each player and stat (a "market"), the app builds its own projection from that

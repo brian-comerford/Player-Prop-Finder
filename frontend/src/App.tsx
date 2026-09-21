@@ -7,6 +7,7 @@ import InfoPage from "./components/InfoPage";
 import { fetchMeta, fetchProps } from "./lib/data";
 import type { Meta, Prop } from "./lib/types";
 import { sideEdge } from "./lib/odds";
+import { useTheme } from "./lib/useTheme";
 
 const CONFIDENCE_RANK: Record<string, number> = { Low: 0, Medium: 1, High: 2 };
 type Tab = "props" | "info";
@@ -18,6 +19,7 @@ export default function App() {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [selected, setSelected] = useState<Prop | null>(null);
   const [tab, setTab] = useState<Tab>("props");
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     Promise.all([fetchProps(), fetchMeta()])
@@ -85,7 +87,7 @@ export default function App() {
               <PropsTable props={filtered} onSelect={setSelected} />
             </>
           ) : (
-            <InfoPage />
+            <InfoPage theme={theme} onThemeChange={setTheme} />
           )}
         </div>
       )}
