@@ -1,0 +1,28 @@
+name: (scratch) Sleeper API probe
+
+on:
+  push:
+    branches:
+      - claude/serene-brown-j2g9w3
+    paths:
+      - .github/workflows/_sleeper_api_probe.yml
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Try Sleeper weekly projections endpoint
+        run: |
+          echo "== projections/nfl/regular/2026/3 =="
+          curl -sS -D /tmp/sleeper_headers.txt -w "\nHTTP %{http_code}\n" \
+            "https://api.sleeper.app/v1/projections/nfl/regular/2026/3" \
+            -o /tmp/sleeper_proj.json || true
+          echo "--- response headers ---"
+          cat /tmp/sleeper_headers.txt || true
+          echo "--- byte count ---"
+          wc -c < /tmp/sleeper_proj.json || echo 0
+          echo "--- first 4000 bytes of body ---"
+          head -c 4000 /tmp/sleeper_proj.json || true
+          echo
+          echo "--- grep for a couple of known skill players (raw substring search) ---"
+          grep -o '"[a-zA-Z_]*":[0-9.-]*' /tmp/sleeper_proj.json | sort | uniq -c | sort -rn | head -60
