@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toPng } from "html-to-image";
+import { toBlob } from "html-to-image";
 import Banner from "./components/Banner";
 import Filters, { DEFAULT_FILTERS, type FilterState } from "./components/Filters";
 import PropsTable from "./components/PropsTable";
@@ -138,19 +138,49 @@ export default function App() {
       document.body.appendChild(captureHost);
 
       // Let the browser actually paint the newly-inserted content before
-      // handing it to html-to-image -- without this, toPng can serialize
+      // handing it to html-to-image -- without this, toBlob can serialize
       // the node before layout has settled and come back with a blank image.
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-      const dataUrl = await toPng(wrapper, {
+      const blob = await toBlob(wrapper, {
         pixelRatio: 2,
         width: wrapper.scrollWidth,
         height: wrapper.scrollHeight,
       });
-      const link = document.createElement("a");
-      link.href = dataUrl;
-      link.download = `player-prop-finder-${Date.now()}.png`;
-      link.click();
+      if (!blob) throw new Error("html-to-image returned no image data");
+
+      const filename = `player-prop-finder-${Date.now()}.png`;
+      const file = new File([blob], filename, { type: "image/png" });
+
+      // A plain <a download> link only ever puts the file in the browser's
+      // Downloads folder -- on iOS/Android that's not the Photos/Gallery
+      // app, which is what "save image" means to most people on a phone.
+      // The Web Share API's native share sheet is what actually offers a
+      // "Save Image"/"Save to Photos" action, so prefer it wherever the
+      // browser can share this file and fall back to a direct download
+      // (the correct, expected behavior on desktop) everywhere else.
+      let shared = false;
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: "Player Prop Finder" });
+          shared = true;
+        } catch (shareErr) {
+          // AbortError just means the person closed the share sheet
+          // themselves -- not a failure, and not worth falling back for.
+          if (shareErr instanceof Error && shareErr.name === "AbortError") {
+            shared = true;
+          }
+        }
+      }
+
+      if (!shared) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
     } catch (e) {
       console.error("Failed to export table image", e);
       alert("Couldn't save the image -- please try again.");
