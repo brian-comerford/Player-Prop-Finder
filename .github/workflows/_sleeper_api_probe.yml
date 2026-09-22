@@ -11,18 +11,13 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Try Sleeper weekly projections endpoint
+      - name: Check player metadata for gsis_id crosswalk
         run: |
-          echo "== projections/nfl/regular/2026/3 =="
-          curl -sS -D /tmp/sleeper_headers.txt -w "\nHTTP %{http_code}\n" \
-            "https://api.sleeper.app/v1/projections/nfl/regular/2026/3" \
-            -o /tmp/sleeper_proj.json || true
-          echo "--- response headers ---"
-          cat /tmp/sleeper_headers.txt || true
+          echo "== players/nfl (metadata) =="
+          curl -sS -w "\nHTTP %{http_code}\n" \
+            "https://api.sleeper.app/v1/players/nfl" \
+            -o /tmp/sleeper_players.json
           echo "--- byte count ---"
-          wc -c < /tmp/sleeper_proj.json || echo 0
-          echo "--- first 4000 bytes of body ---"
-          head -c 4000 /tmp/sleeper_proj.json || true
-          echo
-          echo "--- grep for a couple of known skill players (raw substring search) ---"
-          grep -o '"[a-zA-Z_]*":[0-9.-]*' /tmp/sleeper_proj.json | sort | uniq -c | sort -rn | head -60
+          wc -c < /tmp/sleeper_players.json
+          echo "--- Justin Jefferson entry (search by full_name) ---"
+          python3 -c "import json; d = json.load(open('/tmp/sleeper_players.json')); m = [p for p in d.values() if p.get('full_name') == 'Justin Jefferson']; print(json.dumps(m[0], indent=2)) if m else print('not found')"
