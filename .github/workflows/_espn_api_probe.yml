@@ -2,6 +2,11 @@ name: (scratch) ESPN API probe
 
 on:
   workflow_dispatch: {}
+  push:
+    branches:
+      - claude/serene-brown-j2g9w3
+    paths:
+      - .github/workflows/_espn_api_probe.yml
 
 jobs:
   probe:
