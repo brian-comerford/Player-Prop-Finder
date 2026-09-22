@@ -37,6 +37,7 @@ export interface Prop {
   confidence: Confidence;
   recent_games: RecentGame[];
   trends: string[];
+  injury_status: string | null;
 }
 
 export interface Meta {

@@ -302,6 +302,11 @@ def main():
         quotes = json.load(f)
     with open(os.path.join(DATA_DIR, "player_activity.json")) as f:
         player_activity = json.load(f)
+    injury_report_path = os.path.join(DATA_DIR, "injury_report.json")
+    injury_report = {}
+    if os.path.exists(injury_report_path):
+        with open(injury_report_path) as f:
+            injury_report = json.load(f)
 
     game_lookup = {}
     matchup_options = []
@@ -327,9 +332,16 @@ def main():
     defense_tier_cache = {}
 
     inactive_players = set()
+    ruled_out_players = set()
     if season_week["upcoming_season"] is not None:
         active_baselines = {}
         for key, base in baselines.items():
+            injury = injury_report.get(base["player_id"])
+            if injury and injury["status"] in ("Out", "Doubtful"):
+                ruled_out_players.add(base["display_name"])
+                inactive_players.add(base["display_name"])
+                continue
+
             last_season, last_week = base["last_active_season"], base["last_active_week"]
             pbp_seen = player_activity.get(base["player_id"])
             if pbp_seen and (pbp_seen["season"], pbp_seen["week"]) > (last_season, last_week):
@@ -344,7 +356,9 @@ def main():
             active_baselines[key] = base
         baselines = active_baselines
         print(
-            f"Excluded {len(inactive_players)} players with no confirmed snap in the last "
+            f"Excluded {len(inactive_players)} players total: "
+            f"{len(ruled_out_players)} ruled Out/Doubtful this week, "
+            f"{len(inactive_players) - len(ruled_out_players)} with no confirmed snap in the last "
             f"{INACTIVE_GAMES_MISSED_THRESHOLD} games"
         )
 
@@ -411,6 +425,11 @@ def main():
             base["game_log"], cfg, q["point"], recommended_side, bottom_half_set, top_half_set
         )
 
+        injury = injury_report.get(base["player_id"])
+        injury_status = None
+        if injury and injury["status"] == "Questionable":
+            injury_status = f"Questionable ({injury['injury']})" if injury.get("injury") else "Questionable"
+
         props.append(
             {
                 "player_name": base["display_name"],
@@ -441,6 +460,7 @@ def main():
                 "confidence": confidence_label(base["games"], base["mean"], base["std"]),
                 "recent_games": base["recent_games"],
                 "trends": trends,
+                "injury_status": injury_status,
             }
         )
 

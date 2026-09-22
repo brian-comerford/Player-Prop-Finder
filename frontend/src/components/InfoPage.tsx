@@ -78,6 +78,18 @@ export default function InfoPage({
           older stats look &mdash; a strong game log from a year ago doesn't mean much if
           they're not actually playing right now.
         </p>
+        <p>
+          Players are also checked against the official weekly injury report. Anyone listed as{" "}
+          <strong>Out</strong> or <strong>Doubtful</strong> is left out of these results the same
+          way, since they're unlikely to play at all. A player listed as{" "}
+          <strong>Questionable</strong> still shows up (that designation is genuinely uncertain,
+          not a reliable "won't play" signal) but gets a small{" "}
+          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+            Q
+          </span>{" "}
+          badge next to their name &mdash; the projection is built purely from past stats, so it
+          has no way to know about a game-status question like that on its own.
+        </p>
       </Section>
 
       <Section title="Table columns">
