@@ -284,6 +284,69 @@ def confidence_label(games, mean, std):
     return "Low"
 
 
+CONFIDENCE_TIERS = ["Low", "Medium", "High"]
+
+
+def espn_projected_value(market, espn_stats):
+    """Our own market keys don't line up 1:1 with ESPN's stat categories
+    (rush+rec yards and anytime TD are both combinations), so this maps
+    each market to the ESPN stat(s) that estimate the same thing. Returns
+    None when ESPN has no relevant projection for this player at all,
+    rather than treating a genuinely missing stat as zero.
+    """
+    if espn_stats is None:
+        return None
+    if market == "player_rush_reception_yds":
+        if "rush_yd" not in espn_stats and "rec_yd" not in espn_stats:
+            return None
+        return espn_stats.get("rush_yd", 0) + espn_stats.get("rec_yd", 0)
+    if market == "player_anytime_td":
+        if "rush_td" not in espn_stats and "rec_td" not in espn_stats:
+            return None
+        return espn_stats.get("rush_td", 0) + espn_stats.get("rec_td", 0)
+    return espn_stats.get(
+        {
+            "player_pass_yds": "pass_yd",
+            "player_pass_tds": "pass_td",
+            "player_rush_yds": "rush_yd",
+            "player_receptions": "rec",
+            "player_reception_yds": "rec_yd",
+        }.get(market)
+    )
+
+
+def espn_agreement_level(our_value, espn_value):
+    """How closely ESPN's independent projection matches our own, as a
+    relative spread between the two -- same bucketing (<=15% strong,
+    <=35% moderate, else split) as a working reference implementation
+    that blends multiple fantasy projection sources this same way.
+    """
+    if our_value is None or espn_value is None:
+        return None
+    avg = (our_value + espn_value) / 2
+    if avg <= 0:
+        return None
+    rel_spread = abs(our_value - espn_value) / avg
+    if rel_spread <= 0.15:
+        return "strong"
+    if rel_spread <= 0.35:
+        return "moderate"
+    return "split"
+
+
+def adjust_confidence(label, agreement):
+    """A second, independent projection system agreeing closely is
+    evidence the model's estimate isn't a fluke; one that's way off is
+    reason for more caution -- shifts the confidence tier by at most one
+    step either way, never overriding it outright.
+    """
+    if agreement not in ("strong", "split"):
+        return label
+    idx = CONFIDENCE_TIERS.index(label)
+    idx = idx + 1 if agreement == "strong" else idx - 1
+    return CONFIDENCE_TIERS[max(0, min(idx, len(CONFIDENCE_TIERS) - 1))]
+
+
 def project_probabilities(mean, std, line, binary=False):
     if binary:
         p_yes = min(max(mean, TD_PROB_BOUNDS[0]), TD_PROB_BOUNDS[1])
@@ -307,6 +370,11 @@ def main():
     if os.path.exists(injury_report_path):
         with open(injury_report_path) as f:
             injury_report = json.load(f)
+    espn_projections_path = os.path.join(DATA_DIR, "espn_projections.json")
+    espn_projections = {}
+    if os.path.exists(espn_projections_path):
+        with open(espn_projections_path) as f:
+            espn_projections = json.load(f)
 
     game_lookup = {}
     matchup_options = []
@@ -430,6 +498,12 @@ def main():
         if injury and injury["status"] == "Questionable":
             injury_status = f"Questionable ({injury['injury']})" if injury.get("injury") else "Questionable"
 
+        espn_value = espn_projected_value(q["market"], espn_projections.get(base["player_id"]))
+        agreement = espn_agreement_level(projected_mean, espn_value)
+        confidence = adjust_confidence(
+            confidence_label(base["games"], base["mean"], base["std"]), agreement
+        )
+
         props.append(
             {
                 "player_name": base["display_name"],
@@ -457,10 +531,12 @@ def main():
                 "projected_value": round(projected_mean, 1),
                 "defense_factor": round(factor, 3),
                 "sample_games": base["games"],
-                "confidence": confidence_label(base["games"], base["mean"], base["std"]),
+                "confidence": confidence,
                 "recent_games": base["recent_games"],
                 "trends": trends,
                 "injury_status": injury_status,
+                "espn_projected_value": round(espn_value, 1) if espn_value is not None else None,
+                "espn_agreement": agreement,
             }
         )
 
@@ -476,6 +552,15 @@ def main():
             f"no_candidates={drop_no_candidates.get(mkey, 0)} -> "
             f"{final_counts.get(mkey, 0)} final props"
         )
+
+    agreement_counts = Counter(p["espn_agreement"] for p in props if p["espn_agreement"])
+    print(
+        f"ESPN second-opinion agreement: {len(espn_projections):,} players with ESPN projections, "
+        f"{sum(agreement_counts.values())} props compared -- "
+        f"strong={agreement_counts.get('strong', 0)} "
+        f"moderate={agreement_counts.get('moderate', 0)} "
+        f"split={agreement_counts.get('split', 0)}"
+    )
 
     anytime_td_props = sorted(
         (p for p in props if p["market"] == "player_anytime_td" and p["price_over"] is not None),

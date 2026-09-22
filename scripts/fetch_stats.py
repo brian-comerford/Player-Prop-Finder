@@ -50,6 +50,23 @@ ROSTER_URL_TEMPLATE = (
 INJURIES_URL_TEMPLATE = (
     "https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_{season}.csv"
 )
+ESPN_PROJECTIONS_URL_TEMPLATE = (
+    "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/players"
+    "?view=kona_player_info&scoringPeriodId={week}"
+)
+PLAYER_ID_CROSSWALK_URL = (
+    "https://raw.githubusercontent.com/dynastyprocess/data/master/files/db_playerids.csv"
+)
+
+# ESPN's own weekly projections are keyed by internal numeric stat IDs
+# rather than named fields; this is the subset relevant to our own markets,
+# carried over from a working reference integration (fantasy-command-center)
+# that already reverse-engineered and tested it against ESPN's live data.
+ESPN_STAT_IDS = {
+    3: "pass_yd", 4: "pass_td",
+    24: "rush_yd", 25: "rush_td",
+    41: "rec", 42: "rec_yd", 43: "rec_td",
+}
 
 
 def download(url, dest, timeout=120):
@@ -116,6 +133,78 @@ def fetch_injury_report(season, week):
         }
         for _, row in week_rows.iterrows()
     }
+
+
+def fetch_espn_projections(season, week):
+    """{gsis_id: {stat_key: projected_value}} for this week, from ESPN's
+    public (but unofficial/undocumented) fantasy football projections
+    endpoint -- a second, independent projection system used in analyze.py
+    as a sanity check against our own model, to raise or lower confidence
+    when they agree or disagree.
+
+    ESPN's own player IDs don't match nflverse's gsis_id, so this joins
+    through a community-maintained ID crosswalk (dynastyprocess/data) that
+    carries both.
+
+    Best-effort like fetch_injury_report above: returns {} on any network
+    hiccup or unexpected response shape rather than failing the whole
+    pipeline, since this is a supplementary signal, not a required one.
+    """
+    crosswalk_dest = os.path.join(RAW_DIR, "player_id_crosswalk.csv")
+    try:
+        download(PLAYER_ID_CROSSWALK_URL, crosswalk_dest)
+        crosswalk = pd.read_csv(crosswalk_dest, low_memory=False, usecols=["gsis_id", "espn_id"])
+    except (requests.RequestException, ValueError) as exc:
+        print(f"  player ID crosswalk unavailable ({exc}); skipping ESPN projections")
+        return {}
+    finally:
+        if os.path.exists(crosswalk_dest):
+            os.remove(crosswalk_dest)
+
+    crosswalk = crosswalk.dropna(subset=["gsis_id", "espn_id"])
+    espn_to_gsis = {str(int(row.espn_id)): row.gsis_id for row in crosswalk.itertuples()}
+
+    try:
+        resp = requests.get(
+            ESPN_PROJECTIONS_URL_TEMPLATE.format(season=season, week=week),
+            headers={"x-fantasy-filter": json.dumps({"players": {"filterActive": {"value": True}}})},
+            timeout=180,
+        )
+        resp.raise_for_status()
+        espn_players = resp.json()
+    except (requests.RequestException, ValueError) as exc:
+        print(f"  ESPN projections unavailable ({exc}); skipping")
+        return {}
+    if not isinstance(espn_players, list):
+        print("  ESPN projections response shape changed unexpectedly; skipping")
+        return {}
+
+    projections = {}
+    for player in espn_players:
+        gsis_id = espn_to_gsis.get(str(player.get("id")))
+        if gsis_id is None:
+            continue
+        entry = next(
+            (
+                s
+                for s in player.get("stats", [])
+                if s.get("scoringPeriodId") == week
+                and s.get("seasonId") == season
+                and s.get("statSourceId") == 1
+                and s.get("statSplitTypeId") == 1
+            ),
+            None,
+        )
+        if entry is None or not entry.get("stats"):
+            continue
+        stats = {
+            name: entry["stats"][str(stat_id)]
+            for stat_id, name in ESPN_STAT_IDS.items()
+            if str(stat_id) in entry["stats"]
+        }
+        if stats:
+            projections[gsis_id] = stats
+    return projections
 
 
 def build_recent_stats_from_pbp(seasons):
@@ -309,6 +398,13 @@ def main():
     with open(os.path.join(DATA_DIR, "injury_report.json"), "w") as f:
         json.dump(injury_report, f)
     print(f"Wrote {len(injury_report):,} injury report entries -> data/injury_report.json")
+
+    espn_projections = {}
+    if upcoming_season is not None and upcoming_week is not None:
+        espn_projections = fetch_espn_projections(upcoming_season, upcoming_week)
+    with open(os.path.join(DATA_DIR, "espn_projections.json"), "w") as f:
+        json.dump(espn_projections, f)
+    print(f"Wrote {len(espn_projections):,} ESPN projection entries -> data/espn_projections.json")
 
     with open(os.path.join(DATA_DIR, "season_week.json"), "w") as f:
         json.dump(

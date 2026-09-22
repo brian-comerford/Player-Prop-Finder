@@ -16,6 +16,12 @@ import { isBinaryMarket, sideBook, sideEdge, sideImpliedProb, sideModelProb, sid
 const BAR_UP = "#22c55e";
 const BAR_DOWN = "#94a3b8";
 
+const AGREEMENT_LABEL: Record<"strong" | "moderate" | "split", string> = {
+  strong: "agrees",
+  moderate: "roughly agrees",
+  split: "disagrees",
+};
+
 export default function PropDetail({ prop, onClose }: { prop: Prop; onClose: () => void }) {
   const side = prop.recommended_side;
   const binary = isBinaryMarket(prop);
@@ -64,6 +70,13 @@ export default function PropDetail({ prop, onClose }: { prop: Prop; onClose: () 
           <Stat label="Book implied (no-vig)" value={formatPct(sideImpliedProb(prop, side))} />
           <Stat label="Opponent factor" value={`${prop.defense_factor}x`} />
           <Stat label="Confidence" value={`${prop.confidence} (${prop.sample_games}g)`} />
+          {prop.espn_projected_value !== null && (
+            <Stat
+              label="ESPN 2nd opinion"
+              value={`${prop.espn_projected_value} (${AGREEMENT_LABEL[prop.espn_agreement ?? "moderate"]})`}
+              highlight={prop.espn_agreement === "strong"}
+            />
+          )}
         </div>
 
         {prop.trends.length > 0 && (

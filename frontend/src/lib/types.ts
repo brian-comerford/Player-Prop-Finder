@@ -38,6 +38,8 @@ export interface Prop {
   recent_games: RecentGame[];
   trends: string[];
   injury_status: string | null;
+  espn_projected_value: number | null;
+  espn_agreement: "strong" | "moderate" | "split" | null;
 }
 
 export interface Meta {
