@@ -139,6 +139,9 @@ export default function InfoPage({
               <li><strong>Medium</strong>: 5+ games, or more variable output.</li>
               <li><strong>Low</strong>: fewer games or highly volatile numbers &mdash; treat these projections loosely.</li>
             </ul>
+            Where available, this also shifts by one tier based on whether ESPN's own,
+            independently-computed weekly projection agrees or disagrees &mdash; see
+            &quot;ESPN 2nd opinion&quot; below.
           </Term>
         </dl>
       </Section>
@@ -186,6 +189,16 @@ export default function InfoPage({
             back's receiving production is compared to what that defense allows to running
             backs, not to wideouts. Falls back to an all-positions blended factor when the
             position-specific sample is too thin.
+          </Term>
+          <Term term="ESPN 2nd opinion">
+            Where ESPN publishes its own weekly fantasy projection for this player and stat, it
+            shows up here as an outside sanity check, with a plain read on how closely it
+            lines up with this app's own number: &quot;agrees,&quot; &quot;roughly agrees,&quot;
+            or &quot;disagrees.&quot; Two independently-built projections landing in the same
+            place is modest evidence the number isn't a fluke, and a real disagreement is a
+            reason for more caution &mdash; each shifts Confidence by at most one tier, in that
+            direction, never overriding it outright. Missing for players ESPN hasn't projected
+            for that week yet.
           </Term>
         </dl>
       </Section>
