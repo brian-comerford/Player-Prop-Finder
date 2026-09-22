@@ -99,7 +99,17 @@ export default function PropsTable({
                         <span className="h-5 w-5 shrink-0" aria-hidden="true" />
                       )}
                       <div>
-                        <div className="font-medium">{p.player_name}</div>
+                        <div className="flex items-center gap-1.5 font-medium">
+                          {p.player_name}
+                          {p.injury_status && (
+                            <span
+                              title={p.injury_status}
+                              className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                            >
+                              Q
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400">
                           {p.position} &middot; {p.team} vs {p.opponent}
                           {p.time_slot && <> &middot; {p.time_slot}</>}

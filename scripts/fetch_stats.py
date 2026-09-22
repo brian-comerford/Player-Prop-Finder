@@ -47,6 +47,9 @@ GAP_SEASON_PBP_COLS = [
 ROSTER_URL_TEMPLATE = (
     "https://github.com/nflverse/nflverse-data/releases/download/rosters/roster_{season}.csv"
 )
+INJURIES_URL_TEMPLATE = (
+    "https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_{season}.csv"
+)
 
 
 def download(url, dest, timeout=120):
@@ -77,6 +80,42 @@ def load_roster_info(season):
     # recent roster snapshot rather than trying to align on exact week.
     latest = roster.sort_values("week").groupby("gsis_id").tail(1)
     return {row["gsis_id"]: (row["full_name"], row["position"]) for _, row in latest.iterrows()}
+
+
+def fetch_injury_report(season, week):
+    """{player_id: {"status": "Out"|"Doubtful"|"Questionable", "injury": str
+    or None}} from nflverse's official weekly injury report for the
+    upcoming game, wherever it's been published yet (teams file these
+    Wed-Fri before Sunday games, so it can be partial or absent early in
+    the week). Players with no listed designation aren't included.
+
+    This is real, current-week injury status -- a different signal from
+    the play-by-play-derived "still active this season" check elsewhere
+    in this module, and catches something that can't: an every-week
+    starter who got hurt *this* week.
+    """
+    dest = os.path.join(RAW_DIR, f"injuries_{season}.csv")
+    try:
+        download(INJURIES_URL_TEMPLATE.format(season=season), dest)
+    except requests.RequestException as exc:
+        print(f"  no injury report available yet for {season} ({exc}); skipping")
+        return {}
+    injuries = pd.read_csv(
+        dest,
+        low_memory=False,
+        usecols=["season", "week", "gsis_id", "report_status", "report_primary_injury"],
+    )
+    os.remove(dest)
+    week_rows = injuries[
+        (injuries["week"] == week) & injuries["gsis_id"].notna() & injuries["report_status"].notna()
+    ]
+    return {
+        row["gsis_id"]: {
+            "status": row["report_status"],
+            "injury": row["report_primary_injury"] if pd.notna(row["report_primary_injury"]) else None,
+        }
+        for _, row in week_rows.iterrows()
+    }
 
 
 def build_recent_stats_from_pbp(seasons):
@@ -263,6 +302,13 @@ def main():
     with open(os.path.join(DATA_DIR, "player_activity.json"), "w") as f:
         json.dump(activity, f)
     print(f"Wrote {len(activity):,} player activity records -> data/player_activity.json")
+
+    injury_report = {}
+    if upcoming_season is not None and upcoming_week is not None:
+        injury_report = fetch_injury_report(upcoming_season, upcoming_week)
+    with open(os.path.join(DATA_DIR, "injury_report.json"), "w") as f:
+        json.dump(injury_report, f)
+    print(f"Wrote {len(injury_report):,} injury report entries -> data/injury_report.json")
 
     with open(os.path.join(DATA_DIR, "season_week.json"), "w") as f:
         json.dump(
