@@ -48,6 +48,10 @@ export default function Banner({ meta }: { meta: Meta }) {
           secret to pull live odds &mdash; see the README.
         </div>
       )}
+      <p className="text-xs text-slate-400 dark:text-slate-600">
+        This app costs approximately $30 per month to keep up to date. If you use it and enjoy
+        it, a small donation would be appreciated &mdash; @Brian-Comerford-1 on Venmo.
+      </p>
     </div>
   );
 }
