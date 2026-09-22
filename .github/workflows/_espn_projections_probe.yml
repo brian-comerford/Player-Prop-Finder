@@ -1,0 +1,20 @@
+name: (scratch) ESPN projections end-to-end probe
+
+on:
+  push:
+    branches:
+      - claude/serene-brown-j2g9w3
+    paths:
+      - .github/workflows/_espn_projections_probe.yml
+      - scripts/_espn_probe.py
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pandas requests
+      - run: python3 scripts/_espn_probe.py
