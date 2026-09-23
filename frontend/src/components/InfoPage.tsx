@@ -217,6 +217,25 @@ export default function InfoPage({
         </p>
       </Section>
 
+      <Section title="Track record">
+        <p>
+          The banner at the top shows how the model's own picks have actually done: every
+          week, the recommended side for every prop is saved right before that week's games
+          start, then graded against the real final result once they're over &mdash; an Over
+          on 65.5 rushing yards is a hit if the player actually ran for more than that,
+          regardless of what the model would say if you re-ran it today with hindsight. That
+          hit rate, and the breakdown by Confidence tier, is a running total across every
+          graded week so far, not just a recent hot or cold streak.
+        </p>
+        <p>
+          Early on, this number will bounce around a lot &mdash; a few dozen picks from one or
+          two weeks is a small sample, and the banner says so directly until there's enough
+          history to mean much. If the confidence tiers are doing their job, High should end
+          up landing ahead of Medium and Low over time, though with this few games played
+          there's no way to promise that yet.
+        </p>
+      </Section>
+
       <Section title="Where the data comes from">
         <p>
           Player stats and schedules come from{" "}

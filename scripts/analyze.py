@@ -224,6 +224,16 @@ def split_defense_tiers(defense_factors, market, position):
     return bottom_half, top_half
 
 
+def side_hits(binary, side, line, value):
+    """Whether a real per-game stat `value` would have hit the given side
+    of a line -- shared between the trend-insight hit rate below and the
+    historical pick-grading further down.
+    """
+    if binary:
+        return value > 0 if side == "over" else value <= 0
+    return value > line if side == "over" else value < line
+
+
 def build_trend_insights(game_log, cfg, line, side, bottom_half_set, top_half_set):
     """Notable, plain-English hit-rate patterns for the recommended side,
     e.g. "Over 3.5 receptions in 4 of last 5 games" or the same measured
@@ -238,9 +248,7 @@ def build_trend_insights(game_log, cfg, line, side, bottom_half_set, top_half_se
     binary = cfg.get("binary", False)
 
     def is_hit(value):
-        if binary:
-            return value > 0 if side == "over" else value <= 0
-        return value > line if side == "over" else value < line
+        return side_hits(binary, side, line, value)
 
     if binary:
         verb = "Scored a TD" if side == "over" else "Held without a TD"
@@ -265,6 +273,130 @@ def build_trend_insights(game_log, cfg, line, side, bottom_half_set, top_half_se
             insights.append(f"{verb} in {m_hits} of {m} games vs. {tier_label} defenses")
 
     return insights
+
+
+HISTORY_DIR = os.path.join(DATA_DIR, "history")
+
+
+def snapshot_current_week_picks(props, season, week):
+    """Writes data/history/picks_{season}_wk{week}.json: a compact record of
+    every current recommendation (side, line, model probability, edge,
+    confidence), so it can be graded against what actually happened once
+    the games are played. Overwritten on every run up until kickoff, since
+    the model's own inputs (odds, injuries, usage) can still change during
+    the week -- the last snapshot before the games start is the one that
+    actually gets graded.
+    """
+    os.makedirs(HISTORY_DIR, exist_ok=True)
+    picks = [
+        {
+            "player_id": p["player_id"],
+            "player_name": p["player_name"],
+            "position": p["position"],
+            "team": p["team"],
+            "opponent": p["opponent"],
+            "market": p["market"],
+            "line": p["line"],
+            "side": p["recommended_side"],
+            "model_prob": p["model_prob_over"] if p["recommended_side"] == "over" else p["model_prob_under"],
+            "edge": p["recommended_edge"],
+            "confidence": p["confidence"],
+        }
+        for p in props
+    ]
+    path = os.path.join(HISTORY_DIR, f"picks_{season}_wk{week}.json")
+    with open(path, "w") as f:
+        json.dump({"season": season, "week": week, "generated_at": utcnow_iso(), "picks": picks}, f)
+
+
+def actual_value_for(stats_df, player_id, season, week, market):
+    """The real per-game value for this player/market in a past week
+    (summed from the same stat columns the projection itself is built
+    from), or None if they have no row for that week at all -- didn't
+    play (bye, injury, inactive), so there's nothing to grade a pick
+    against.
+    """
+    rows = stats_df[
+        (stats_df["player_id"] == player_id) & (stats_df["season"] == season) & (stats_df["week"] == week)
+    ]
+    if rows.empty:
+        return None
+    cfg = MARKETS[market]
+    total = rows[cfg["stat_cols"]].fillna(0).sum(axis=1).iloc[0]
+    if cfg.get("binary"):
+        return float(total > 0)
+    return float(total)
+
+
+def grade_past_weeks(stats_df, current_season, current_week):
+    """Grades every snapshotted week that's already been played --
+    (season, week) strictly before the week currently being projected for
+    -- and hasn't been graded yet (no matching results file). Idempotent:
+    safe to call on every run, since a week already graded is skipped.
+    """
+    if current_week is None or not os.path.isdir(HISTORY_DIR):
+        return
+    for fname in sorted(os.listdir(HISTORY_DIR)):
+        if not fname.startswith("picks_") or not fname.endswith(".json"):
+            continue
+        results_path = os.path.join(HISTORY_DIR, fname.replace("picks_", "results_", 1))
+        if os.path.exists(results_path):
+            continue
+        with open(os.path.join(HISTORY_DIR, fname)) as f:
+            snapshot = json.load(f)
+        season, week = snapshot["season"], snapshot["week"]
+        if (season, week) >= (current_season, current_week):
+            continue  # not played yet
+
+        graded = []
+        for pick in snapshot["picks"]:
+            actual = actual_value_for(stats_df, pick["player_id"], season, week, pick["market"])
+            if actual is None:
+                continue
+            binary = MARKETS[pick["market"]].get("binary", False)
+            hit = side_hits(binary, pick["side"], pick["line"], actual)
+            graded.append({**pick, "actual_value": round(actual, 1), "hit": hit})
+
+        with open(results_path, "w") as f:
+            json.dump({"season": season, "week": week, "graded_at": utcnow_iso(), "picks": graded}, f)
+        print(f"  Graded {season} wk{week}: {len(graded)}/{len(snapshot['picks'])} picks (rest didn't play)")
+
+
+def build_track_record():
+    """Rolls up every graded week into overall + per-confidence-tier hit
+    rates. Fully derived from data/history/results_*.json, so unlike that
+    directory this doesn't need to be committed anywhere -- it's rebuilt
+    fresh from the committed source of truth on every run.
+    """
+    def summarize(picks):
+        if not picks:
+            return None
+        hits = sum(1 for p in picks if p["hit"])
+        return {"picks": len(picks), "hits": hits, "hit_rate": round(hits / len(picks), 3)}
+
+    all_picks = []
+    weeks_graded = 0
+    if os.path.isdir(HISTORY_DIR):
+        for fname in sorted(os.listdir(HISTORY_DIR)):
+            if not fname.startswith("results_") or not fname.endswith(".json"):
+                continue
+            with open(os.path.join(HISTORY_DIR, fname)) as f:
+                data = json.load(f)
+            all_picks.extend(data["picks"])
+            weeks_graded += 1
+
+    by_confidence = {}
+    for tier in ("High", "Medium", "Low"):
+        summary = summarize([p for p in all_picks if p["confidence"] == tier])
+        if summary:
+            by_confidence[tier] = summary
+
+    return {
+        "overall": summarize(all_picks),
+        "by_confidence": by_confidence,
+        "weeks_graded": weeks_graded,
+        "updated_at": utcnow_iso(),
+    }
 
 
 def classify_time_slot(weekday, gametime):
@@ -537,6 +669,7 @@ def main():
 
         props.append(
             {
+                "player_id": base["player_id"],
                 "player_name": base["display_name"],
                 "position": base["position"],
                 "team": player_team,
@@ -636,6 +769,19 @@ def main():
 
     print(f"Wrote {len(props)} props -> data/props.json")
     print(meta)
+
+    if season_week["upcoming_season"] is not None and season_week["upcoming_week"] is not None:
+        snapshot_current_week_picks(props, season_week["upcoming_season"], season_week["upcoming_week"])
+        print(
+            f"Snapshotted {len(props)} picks for {season_week['upcoming_season']} "
+            f"wk{season_week['upcoming_week']} -> data/history/"
+        )
+    grade_past_weeks(stats_df, current_season, season_week["upcoming_week"])
+
+    track_record = build_track_record()
+    with open(os.path.join(DATA_DIR, "track_record.json"), "w") as f:
+        json.dump(track_record, f)
+    print(f"Wrote track record ({track_record['weeks_graded']} weeks graded) -> data/track_record.json")
 
 
 if __name__ == "__main__":

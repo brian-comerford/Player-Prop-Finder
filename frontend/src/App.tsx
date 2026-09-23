@@ -5,8 +5,8 @@ import Filters, { DEFAULT_FILTERS, type FilterState } from "./components/Filters
 import PropsTable from "./components/PropsTable";
 import PropDetail from "./components/PropDetail";
 import InfoPage from "./components/InfoPage";
-import { fetchMeta, fetchProps } from "./lib/data";
-import type { Meta, Prop } from "./lib/types";
+import { fetchMeta, fetchProps, fetchTrackRecord } from "./lib/data";
+import type { Meta, Prop, TrackRecord } from "./lib/types";
 import { sideEdge } from "./lib/odds";
 import { useTheme } from "./lib/useTheme";
 
@@ -34,6 +34,7 @@ function summarizeFilters(filters: FilterState, meta: Meta): string {
 export default function App() {
   const [props, setProps] = useState<Prop[] | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
+  const [trackRecord, setTrackRecord] = useState<TrackRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [selected, setSelected] = useState<Prop | null>(null);
@@ -49,6 +50,12 @@ export default function App() {
         setMeta(m);
       })
       .catch((e) => setError(String(e)));
+    // Fetched independently: the track record is a nice-to-have stat strip,
+    // not core to the page working, so it shouldn't be able to block (or
+    // show an error for) the props table if it's ever missing or malformed.
+    fetchTrackRecord()
+      .then(setTrackRecord)
+      .catch(() => setTrackRecord(null));
   }, []);
 
   const filtered = useMemo(() => {
@@ -203,7 +210,7 @@ export default function App() {
 
       {props && meta && (
         <div className="space-y-5">
-          <Banner meta={meta} />
+          <Banner meta={meta} trackRecord={trackRecord} />
 
           <div className="flex gap-1 border-b border-slate-200 dark:border-slate-800">
             {(["props", "info"] as const).map((t) => (

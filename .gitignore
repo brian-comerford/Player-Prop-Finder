@@ -7,6 +7,12 @@ __pycache__/
 # workflow builds this fresh on every run instead of committing it)
 data/*
 !data/.gitkeep
+# ...except pick history: this DOES get committed back by the CI workflow,
+# since it's the only record of what the model actually recommended before
+# each week's games -- everything else here is disposable and gets rebuilt
+# from scratch, but there's no way to "rebuild" a past prediction after the
+# fact, so it has to persist across runs (see scripts/analyze.py).
+!data/history/
 
 # Node / frontend
 frontend/node_modules/

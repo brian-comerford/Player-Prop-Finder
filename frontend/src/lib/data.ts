@@ -1,4 +1,4 @@
-import type { Meta, Prop } from "./types";
+import type { Meta, Prop, TrackRecord } from "./types";
 
 const base = import.meta.env.BASE_URL;
 
@@ -16,4 +16,8 @@ export function fetchProps(): Promise<Prop[]> {
 
 export function fetchMeta(): Promise<Meta> {
   return fetchJson<Meta>("meta.json");
+}
+
+export function fetchTrackRecord(): Promise<TrackRecord> {
+  return fetchJson<TrackRecord>("track_record.json");
 }
