@@ -90,26 +90,24 @@ export default function App() {
     const captureHost = document.createElement("div");
     try {
       const isDark = document.documentElement.classList.contains("dark");
-      // html-to-image renders through an SVG <foreignObject>, which doesn't
-      // reliably paint content from a fixed-position, far-off-screen node --
-      // some engines lay it out but skip painting it. Absolute positioning
-      // inside a zero-size, overflow-visible parent keeps it out of the
-      // visible page (no reflow/flash) while still painting normally.
-      wrapper.style.position = "absolute";
-      wrapper.style.top = "0";
-      wrapper.style.left = "0";
       wrapper.style.width = "max-content";
       wrapper.style.padding = "20px";
       wrapper.style.background = isDark ? "#0f172a" : "#ffffff";
       wrapper.style.fontFamily = getComputedStyle(document.body).fontFamily;
 
-      captureHost.style.position = "fixed";
-      captureHost.style.top = "0";
-      captureHost.style.left = "0";
-      captureHost.style.width = "0";
+      // A fixed/absolute position far off-screen (the earlier approach)
+      // relies on stacking order to stay invisible, and on at least one
+      // real mobile browser it briefly painted on top of the live page
+      // instead. Keeping the node in normal document flow inside a
+      // zero-height, overflow-hidden parent clips it out of view at the
+      // CSS box level -- nothing to paint on top of anything else -- while
+      // the node itself still gets fully laid out (real scrollWidth/
+      // scrollHeight, not 0x0) since overflow:hidden only clips painting,
+      // not layout. html-to-image renders from the node's own layout, not
+      // the page's visual clipping, so this doesn't affect the exported
+      // image at all.
       captureHost.style.height = "0";
-      captureHost.style.overflow = "visible";
-      captureHost.style.zIndex = "-1";
+      captureHost.style.overflow = "hidden";
       captureHost.appendChild(wrapper);
 
       const header = document.createElement("div");
