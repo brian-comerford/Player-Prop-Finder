@@ -25,6 +25,19 @@ from common import (
 )
 
 RECENCY_DECAY = 0.88
+# Extra per-season penalty on top of the game-by-game recency decay above --
+# a game from last season gets an additional SEASON_DECAY**1 multiplier, one
+# from two seasons back SEASON_DECAY**2, and so on, while every game in the
+# season being projected for keeps its full game-recency weight (multiplier
+# 1.0). Games stay ordered most-recent-first regardless of season, so this
+# doesn't change the within-season decay shape -- it just makes last
+# season's tail end (still fairly high game-recency weight on its own,
+# since RECENCY_DECAY alone doesn't know about season boundaries) count for
+# distinctly less than this season's own games, which is exactly the
+# signal a season boundary should carry: new-season role/scheme/health
+# changes make old-season stats a weaker proxy for what a player will do
+# now, even when the two are only a few games apart by raw count.
+SEASON_DECAY = 0.6
 MIN_GAMES = 3
 DEFENSE_FACTOR_BOUNDS = (0.75, 1.25)
 MIN_ROWS_FOR_POSITION_FACTOR = 8
@@ -61,20 +74,31 @@ USAGE_MIN = {
 }
 
 
-def weighted_mean_std(values, decay=RECENCY_DECAY):
-    """`values` ordered most-recent-first. Returns (mean, std, n)."""
+def weighted_mean_std(values, weights):
+    """`values`/`weights` aligned, most-recent-first. Returns (mean, std, n)."""
     n = len(values)
     if n == 0:
         return None, None, 0
-    weights = np.array([decay**i for i in range(n)])
     values = np.array(values, dtype=float)
+    weights = np.array(weights, dtype=float)
     mean = np.average(values, weights=weights)
     var = np.average((values - mean) ** 2, weights=weights)
     std = math.sqrt(var)
     return mean, std, n
 
 
-def build_player_baselines(stats_df):
+def game_weights(seasons, current_season):
+    """Per-game weight for weighted_mean_std: game-recency decay combined
+    with the extra per-season penalty described at SEASON_DECAY above.
+    `seasons` is most-recent-first, aligned with the values being weighted.
+    """
+    return [
+        RECENCY_DECAY**i * SEASON_DECAY ** max(0, current_season - int(season))
+        for i, season in enumerate(seasons)
+    ]
+
+
+def build_player_baselines(stats_df, current_season):
     """Returns {(norm_name, market_key): {mean, std, games, team, recent_games}}."""
     stats_df = stats_df.sort_values(["season", "week"], ascending=False)
     baselines = {}
@@ -85,6 +109,7 @@ def build_player_baselines(stats_df):
         position = group["position"].iloc[0]
         norm_name = normalize_name(display_name)
         team_by_player[norm_name] = group["recent_team"].iloc[0]
+        weights = game_weights(group["season"].tolist(), current_season)
 
         for mkey, cfg in MARKETS.items():
             if position not in cfg["position_group"]:
@@ -102,7 +127,7 @@ def build_player_baselines(stats_df):
             if usage_col is not None and rows[usage_col].fillna(0).mean() < usage_min:
                 continue
 
-            mean, std, n = weighted_mean_std(per_game)
+            mean, std, n = weighted_mean_std(per_game, weights)
             floor = max(std, 0.2 * abs(mean), 0.5 if not cfg.get("binary") else 0.03)
             game_log_df = rows[["season", "week", "opponent_team"]].copy()
             game_log_df["value"] = per_game
@@ -395,7 +420,13 @@ def main():
             game_lookup[frozenset((g.home_team, g.away_team))] = info
             matchup_options.append(matchup)
 
-    baselines, team_by_player = build_player_baselines(stats_df)
+    # The season being projected for, not the (possibly stale, see
+    # baseline_season above) season nflverse's player_stats release has
+    # fully caught up to -- that's the season current-season weighting
+    # should actually mean. Falls back to the newest season on file for
+    # the rare offseason case where there's no upcoming week at all.
+    current_season = season_week["upcoming_season"] or int(stats_df["season"].max())
+    baselines, team_by_player = build_player_baselines(stats_df, current_season)
     defense_factors = build_defense_factors(stats_df)
     defense_tier_cache = {}
 

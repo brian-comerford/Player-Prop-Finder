@@ -177,7 +177,11 @@ export default function InfoPage({
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Term term="Projection">
             The model's projected value for that stat this game: the player's recency-weighted
-            average, adjusted by the opponent factor below.
+            average, adjusted by the opponent factor below. Recent games count more than older
+            ones, and on top of that, games from the current season count more than games from a
+            previous one even at the same recency &mdash; a new season can mean a new role, a new
+            team, or coming back from an injury, so last season's stats are a weaker stand-in for
+            what a player will do now than this season's own games are.
           </Term>
           <Term term="Opponent factor">
             How much the upcoming opponent inflates or suppresses this stat compared to a
