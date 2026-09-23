@@ -40,6 +40,7 @@ export interface Prop {
   injury_status: string | null;
   espn_projected_value: number | null;
   espn_agreement: "strong" | "moderate" | "split" | null;
+  player_id: string;
 }
 
 export interface Meta {
@@ -54,4 +55,17 @@ export interface Meta {
   inactive_players_excluded: number;
   matchups: string[];
   time_slots: string[];
+}
+
+export interface HitRateSummary {
+  picks: number;
+  hits: number;
+  hit_rate: number;
+}
+
+export interface TrackRecord {
+  overall: HitRateSummary | null;
+  by_confidence: Partial<Record<Confidence, HitRateSummary>>;
+  weeks_graded: number;
+  updated_at: string;
 }

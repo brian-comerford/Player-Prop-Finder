@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "sync-data": "mkdir -p public/data && cp ../data/props.json ../data/meta.json public/data/",
+    "sync-data": "mkdir -p public/data && cp ../data/props.json ../data/meta.json ../data/track_record.json public/data/",
     "dev": "npm run sync-data && vite",
     "build": "npm run sync-data && tsc -b && vite build",
     "preview": "vite preview"

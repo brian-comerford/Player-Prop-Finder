@@ -1,4 +1,6 @@
-import type { Meta } from "../lib/types";
+import type { Confidence, Meta, TrackRecord } from "../lib/types";
+
+const CONFIDENCE_TIERS: Confidence[] = ["High", "Medium", "Low"];
 
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -9,7 +11,11 @@ function timeAgo(iso: string): string {
   return `${Math.round(hours / 24)} days ago`;
 }
 
-export default function Banner({ meta }: { meta: Meta }) {
+function pct(hitRate: number): string {
+  return `${Math.round(hitRate * 100)}%`;
+}
+
+export default function Banner({ meta, trackRecord }: { meta: Meta; trackRecord: TrackRecord | null }) {
   const weekLabel =
     meta.upcoming_season && meta.upcoming_week
       ? `Week ${meta.upcoming_week}, ${meta.upcoming_season}`
@@ -33,6 +39,22 @@ export default function Banner({ meta }: { meta: Meta }) {
         betting advice &mdash; sample sizes are small and injuries/usage change fast. Bet
         responsibly.
       </p>
+      {trackRecord?.overall && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
+          <strong>Track record:</strong> {pct(trackRecord.overall.hit_rate)} of picks have hit (
+          {trackRecord.overall.hits}/{trackRecord.overall.picks}) across {trackRecord.weeks_graded}{" "}
+          graded {trackRecord.weeks_graded === 1 ? "week" : "weeks"}
+          {trackRecord.weeks_graded < 4 && " — still an early sample, see the Info tab"}
+          {CONFIDENCE_TIERS.some((tier) => trackRecord.by_confidence[tier]) && (
+            <>
+              {" · "}
+              {CONFIDENCE_TIERS.filter((tier) => trackRecord.by_confidence[tier])
+                .map((tier) => `${tier} ${pct(trackRecord.by_confidence[tier]!.hit_rate)}`)
+                .join(" · ")}
+            </>
+          )}
+        </div>
+      )}
       {meta.inactive_players_excluded > 0 && (
         <p className="text-xs text-slate-500 dark:text-slate-400">
           {meta.inactive_players_excluded} player(s) left out of these results because we

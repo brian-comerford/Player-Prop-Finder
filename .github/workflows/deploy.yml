@@ -11,7 +11,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -39,6 +39,30 @@ jobs:
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: python generate_data.py
+
+      # Everything else in data/ is disposable and rebuilt from scratch every
+      # run, but pick history (this week's snapshot, plus any past week the
+      # model just finished grading) is the one thing that can't be rebuilt
+      # after the fact -- it has to persist across runs, and this repo has
+      # no database, so committing it back to the repo is the persistence
+      # layer. A no-op commit (nothing changed) is expected on most runs.
+      #
+      # Deliberately non-fatal to the job: this is a secondary feature, and
+      # a rare push race (e.g. a manual re-run overlapping the schedule)
+      # shouldn't ever block the actual site deploy below. A dropped push
+      # here just means the next run re-derives and re-commits the same
+      # result -- grading is idempotent, so nothing is lost.
+      - name: Commit updated pick history
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/history
+          if git diff --cached --quiet; then
+            echo "No pick-history changes to commit."
+          else
+            git commit -m "Update pick history [skip ci]"
+            git push || (git pull --rebase && git push) || echo "::warning::Couldn't push pick history this run -- will retry next run."
+          fi
 
       - uses: actions/setup-node@v4
         with:
