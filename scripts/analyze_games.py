@@ -68,8 +68,10 @@ TOTAL_STD = {"full": 10.5, "h1": 7.5, "h2": 7.5}
 
 def team_weighted_rates(team_stats, current_season):
     """{team: {f"{stat}_{segment}": rate, f"{stat}_{segment}_allowed": rate,
-    "games": n}} -- each team's own recency/season-weighted scoring rate and
-    what their defense has allowed, for every stat/segment combination.
+    f"points_cv_{segment}": cv, "games": n}} -- each team's own
+    recency/season-weighted scoring rate and what their defense has
+    allowed, for every stat/segment combination, plus how consistent
+    (game to game) that team's own scoring has actually been.
     """
     team_stats = team_stats.sort_values(["season", "week"], ascending=False)
     rates = {}
@@ -84,6 +86,14 @@ def team_weighted_rates(team_stats, current_season):
                 for col in (f"{stat}_{segment}", f"{stat}_allowed_{segment}"):
                     mean, _, _ = weighted_mean_std(group[col].tolist(), weights)
                     entry[col] = mean
+        for segment in SEGMENTS:
+            points_per_game = (
+                group[f"rushing_tds_{segment}"] * TD_POINT_VALUE
+                + group[f"passing_tds_{segment}"] * TD_POINT_VALUE
+                + group[f"field_goals_{segment}"] * FG_POINT_VALUE
+            )
+            mean, std, _ = weighted_mean_std(points_per_game.tolist(), weights)
+            entry[f"points_cv_{segment}"] = std / mean if mean else 1.0
         rates[team] = entry
     return rates
 
@@ -122,9 +132,16 @@ def projected_points(offense_rates, defense_rates, league_avg, segment):
     return total
 
 
-def confidence_for(home_games, away_games):
+def confidence_for(home_games, away_games, home_cv, away_cv):
+    """Mirrors player props' confidence_label: a big enough sample alone
+    isn't enough for High -- the less consistent of the two teams' own
+    scoring (by coefficient of variation) also has to be reasonably low,
+    or a wildly erratic team would look just as trustworthy as a steady
+    one purely because a full prior season pads its game count.
+    """
     n = min(home_games, away_games)
-    if n >= 8:
+    cv = max(home_cv, away_cv)
+    if n >= 8 and cv < 0.6:
         return "High"
     if n >= 5:
         return "Medium"
@@ -146,7 +163,12 @@ def build_matchup_props(slate, team_rates, league_avg, quotes_by_key):
             away_points = projected_points(away_rates, home_rates, league_avg, segment)
             model_total = home_points + away_points
             model_margin_home = home_points - away_points
-            confidence = confidence_for(home_rates["games"], away_rates["games"])
+            confidence = confidence_for(
+                home_rates["games"],
+                away_rates["games"],
+                home_rates[f"points_cv_{segment}"],
+                away_rates[f"points_cv_{segment}"],
+            )
 
             for market in ("spread", "total"):
                 quote = quotes_by_key.get((home, away, segment, market))
