@@ -245,9 +245,12 @@ export default function InfoPage({
           As with player props, Model % is this projection converted to a win probability for
           each side of the spread or total, Book % is the sportsbook's no-vig implied
           probability, and Edge is the difference between the two. Confidence follows the same
-          idea as well &mdash; it's driven by how many recent games both teams have played,
-          since a projection built on a longer track record is more trustworthy than one from a
-          team's first few games of the season.
+          idea as well: both teams need a long enough recent track record, and neither team's
+          own scoring in that segment can be too erratic game to game &mdash; a team that swings
+          wildly from a shutout to 30 points is a harder team to project confidently than a
+          steady one, even with the same number of games on record. This is also why 1st/2nd
+          half confidence tends to run lower than full-game confidence: a half is a smaller,
+          noisier sample of a team's scoring than the whole game is.
         </p>
       </Section>
 
