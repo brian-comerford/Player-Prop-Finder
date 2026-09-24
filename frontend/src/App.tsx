@@ -4,10 +4,14 @@ import Banner from "./components/Banner";
 import Filters, { DEFAULT_FILTERS, type FilterState } from "./components/Filters";
 import PropsTable from "./components/PropsTable";
 import PropDetail from "./components/PropDetail";
+import GameFilters, { DEFAULT_GAME_FILTERS, type GameFilterState } from "./components/GameFilters";
+import GamesTable from "./components/GamesTable";
+import GameDetail from "./components/GameDetail";
 import InfoPage from "./components/InfoPage";
-import { fetchMeta, fetchProps, fetchTrackRecord } from "./lib/data";
-import type { Meta, Prop, TrackRecord } from "./lib/types";
+import { fetchGameMeta, fetchGameProps, fetchMeta, fetchProps, fetchTrackRecord } from "./lib/data";
+import type { GameMeta, GameProp, Meta, Prop, TrackRecord } from "./lib/types";
 import { sideEdge } from "./lib/odds";
+import { sideEdge as sideEdgeGame } from "./lib/gameOdds";
 import { useTheme } from "./lib/useTheme";
 
 const CONFIDENCE_RANK: Record<string, number> = { Low: 0, Medium: 1, High: 2 };
@@ -17,7 +21,7 @@ const CONFIDENCE_RANK: Record<string, number> = { Low: 0, Medium: 1, High: 2 };
 // gets slow enough (multiple seconds, worse on a phone) that it reads as
 // hung rather than working.
 const EXPORT_ROW_LIMIT = 50;
-type Tab = "props" | "info";
+type Tab = "props" | "games" | "info";
 
 function summarizeFilters(filters: FilterState, meta: Meta): string {
   const parts: string[] = [];
@@ -31,13 +35,28 @@ function summarizeFilters(filters: FilterState, meta: Meta): string {
   return parts.length ? parts.join(" · ") : "No filters applied";
 }
 
+function summarizeGameFilters(filters: GameFilterState, meta: GameMeta): string {
+  const parts: string[] = [];
+  if (filters.segment !== "All") parts.push(meta.segments[filters.segment] ?? filters.segment);
+  if (filters.market !== "All") parts.push(filters.market === "spread" ? "Spread" : "Total");
+  if (filters.matchup !== "All") parts.push(filters.matchup);
+  if (filters.minEdge > 0) parts.push(`Min. edge ${(filters.minEdge * 100).toFixed(0)}%+`);
+  if (filters.minConfidence !== "Any") parts.push(`${filters.minConfidence}+ confidence`);
+  return parts.length ? parts.join(" · ") : "No filters applied";
+}
+
 export default function App() {
   const [props, setProps] = useState<Prop[] | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [trackRecord, setTrackRecord] = useState<TrackRecord | null>(null);
+  const [gameProps, setGameProps] = useState<GameProp[] | null>(null);
+  const [gameMeta, setGameMeta] = useState<GameMeta | null>(null);
+  const [gameError, setGameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [gameFilters, setGameFilters] = useState<GameFilterState>(DEFAULT_GAME_FILTERS);
   const [selected, setSelected] = useState<Prop | null>(null);
+  const [selectedGame, setSelectedGame] = useState<GameProp | null>(null);
   const [tab, setTab] = useState<Tab>("props");
   const [exporting, setExporting] = useState(false);
   const tableWrapperRef = useRef<HTMLDivElement>(null);
@@ -56,6 +75,15 @@ export default function App() {
     fetchTrackRecord()
       .then(setTrackRecord)
       .catch(() => setTrackRecord(null));
+    // Also independent of the player-props load above -- the Games tab has
+    // its own data files and can fail or be empty (e.g. no odds source
+    // configured) without affecting the Props tab at all.
+    Promise.all([fetchGameProps(), fetchGameMeta()])
+      .then(([gp, gm]) => {
+        setGameProps(gp);
+        setGameMeta(gm);
+      })
+      .catch((e) => setGameError(String(e)));
   }, []);
 
   const filtered = useMemo(() => {
@@ -73,6 +101,25 @@ export default function App() {
       .sort((a, b) => b.recommended_edge - a.recommended_edge);
   }, [props, filters]);
 
+  const gameMatchups = useMemo(
+    () => Array.from(new Set((gameProps ?? []).map((p) => p.matchup))),
+    [gameProps]
+  );
+
+  const filteredGames = useMemo(() => {
+    if (!gameProps) return [];
+    const minConfidenceRank = CONFIDENCE_RANK[gameFilters.minConfidence] ?? 0;
+    return gameProps
+      .filter((p) => (gameFilters.segment === "All" ? true : p.segment === gameFilters.segment))
+      .filter((p) => (gameFilters.market === "All" ? true : p.market === gameFilters.market))
+      .filter((p) => (gameFilters.matchup === "All" ? true : p.matchup === gameFilters.matchup))
+      .filter((p) => (sideEdgeGame(p, p.recommended_side) ?? 0) >= gameFilters.minEdge)
+      .filter((p) => CONFIDENCE_RANK[p.confidence] >= minConfidenceRank)
+      .sort((a, b) => b.recommended_edge - a.recommended_edge);
+  }, [gameProps, gameFilters]);
+
+  const activeRows = tab === "games" ? filteredGames : tab === "props" ? filtered : [];
+
   // Exports the current (filtered/sorted) table as a PNG someone can save or
   // share, e.g. after narrowing down to the bets they actually want. Builds
   // an off-screen clone rather than screenshotting the on-page table
@@ -83,10 +130,10 @@ export default function App() {
   // viewed later with no other context (a saved file, a text to a friend).
   async function handleExportImage() {
     const tableEl = tableWrapperRef.current?.querySelector("table");
-    if (!tableEl || !meta) return;
-    if (filtered.length > EXPORT_ROW_LIMIT) {
+    if (!tableEl || (tab === "props" && !meta) || (tab === "games" && !gameMeta)) return;
+    if (activeRows.length > EXPORT_ROW_LIMIT) {
       alert(
-        `That's ${filtered.length} rows -- too many for one image (and painfully slow to render). ` +
+        `That's ${activeRows.length} rows -- too many for one image (and painfully slow to render). ` +
           `Narrow it down with the filters above to ${EXPORT_ROW_LIMIT} or fewer props, then try again.`
       );
       return;
@@ -128,7 +175,10 @@ export default function App() {
       subtitle.style.marginTop = "2px";
       subtitle.style.fontSize = "12px";
       subtitle.style.color = "#64748b";
-      subtitle.textContent = `${summarizeFilters(filters, meta)} · ${filtered.length} props · ${new Date().toLocaleString()}`;
+      subtitle.textContent =
+        tab === "games"
+          ? `${summarizeGameFilters(gameFilters, gameMeta!)} · ${activeRows.length} bets · ${new Date().toLocaleString()}`
+          : `${summarizeFilters(filters, meta!)} · ${activeRows.length} props · ${new Date().toLocaleString()}`;
       header.appendChild(title);
       header.appendChild(subtitle);
 
@@ -213,7 +263,7 @@ export default function App() {
           <Banner meta={meta} trackRecord={trackRecord} />
 
           <div className="flex gap-1 border-b border-slate-200 dark:border-slate-800">
-            {(["props", "info"] as const).map((t) => (
+            {(["props", "games", "info"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -223,12 +273,12 @@ export default function App() {
                     : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
-                {t === "props" ? "Props" : "Info"}
+                {t === "props" ? "Props" : t === "games" ? "Games" : "Info"}
               </button>
             ))}
           </div>
 
-          {tab === "props" ? (
+          {tab === "props" && (
             <>
               <Filters meta={meta} filters={filters} onChange={setFilters} />
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
@@ -254,13 +304,63 @@ export default function App() {
                 <PropsTable props={filtered} onSelect={setSelected} />
               </div>
             </>
-          ) : (
-            <InfoPage theme={theme} onThemeChange={setTheme} />
           )}
+
+          {tab === "games" && (
+            <>
+              {gameError && (
+                <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+                  Couldn't load game bets ({gameError}).
+                </div>
+              )}
+              {!gameError && (!gameProps || !gameMeta) && (
+                <div className="py-16 text-center text-slate-500 dark:text-slate-400">
+                  Loading game bets…
+                </div>
+              )}
+              {gameProps && gameMeta && (
+                <>
+                  {gameProps.length === 0 && (
+                    <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                      No game bets available right now &mdash; unlike player props, spreads and
+                      totals have no synthetic-data fallback, so this tab is empty whenever no
+                      live odds source is configured. See the Info tab.
+                    </div>
+                  )}
+                  <GameFilters meta={gameMeta} matchups={gameMatchups} filters={gameFilters} onChange={setGameFilters} />
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
+                    <span>
+                      Showing {filteredGames.length} of {gameProps.length} game bets
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {filteredGames.length > EXPORT_ROW_LIMIT && (
+                        <span className="text-xs text-amber-600 dark:text-amber-400">
+                          Narrow your filters to {EXPORT_ROW_LIMIT} or fewer bets to save an image
+                        </span>
+                      )}
+                      <button
+                        onClick={handleExportImage}
+                        disabled={exporting || filteredGames.length === 0 || filteredGames.length > EXPORT_ROW_LIMIT}
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                      >
+                        {exporting ? "Saving…" : "Save image"}
+                      </button>
+                    </div>
+                  </div>
+                  <div ref={tableWrapperRef}>
+                    <GamesTable props={filteredGames} onSelect={setSelectedGame} />
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
+          {tab === "info" && <InfoPage theme={theme} onThemeChange={setTheme} />}
         </div>
       )}
 
       {selected && <PropDetail prop={selected} onClose={() => setSelected(null)} />}
+      {selectedGame && <GameDetail prop={selectedGame} onClose={() => setSelectedGame(null)} />}
     </div>
   );
 }

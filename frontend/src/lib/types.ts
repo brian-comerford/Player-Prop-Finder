@@ -69,3 +69,51 @@ export interface TrackRecord {
   weeks_graded: number;
   updated_at: string;
 }
+
+export type GameSegment = "full" | "h1" | "h2";
+export type GameMarket = "spread" | "total";
+export type GameSide = "a" | "b";
+
+export interface GameProp {
+  matchup: string;
+  home_team: string;
+  away_team: string;
+  game_date: string | null;
+  time_slot: string | null;
+  segment: GameSegment;
+  segment_label: string;
+  market: GameMarket;
+  market_label: string;
+  line: number | null;
+  side_a_label: string;
+  side_b_label: string;
+  price_a: number | null;
+  price_b: number | null;
+  book_a: string | null;
+  book_b: string | null;
+  model_prob_a: number;
+  model_prob_b: number;
+  implied_prob_a: number | null;
+  implied_prob_b: number | null;
+  edge_a: number | null;
+  edge_b: number | null;
+  recommended_side: GameSide;
+  recommended_edge: number;
+  model_home_points: number;
+  model_away_points: number;
+  model_total: number;
+  model_margin_home: number;
+  sample_games_home: number;
+  sample_games_away: number;
+  confidence: Confidence;
+}
+
+export interface GameMeta {
+  generated_at: string;
+  upcoming_season: number | null;
+  upcoming_week: number | null;
+  odds_source: "live" | "none";
+  odds_fetched_at: string | null;
+  prop_count: number;
+  segments: Record<string, string>;
+}

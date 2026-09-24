@@ -1,9 +1,55 @@
 """Shared constants and helpers for the data pipeline."""
 import datetime as dt
+import math
 import os
 import re
 
+import numpy as np
+
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+
+# Recency/season weighting shared by both the player-prop model (analyze.py)
+# and the game-level spread/total model (analyze_games.py) -- see
+# game_weights() below for what these actually do.
+RECENCY_DECAY = 0.88
+# Extra per-season penalty on top of the game-by-game recency decay above --
+# a game from last season gets an additional SEASON_DECAY**1 multiplier, one
+# from two seasons back SEASON_DECAY**2, and so on, while every game in the
+# season being projected for keeps its full game-recency weight (multiplier
+# 1.0). Games stay ordered most-recent-first regardless of season, so this
+# doesn't change the within-season decay shape -- it just makes last
+# season's tail end (still fairly high game-recency weight on its own,
+# since RECENCY_DECAY alone doesn't know about season boundaries) count for
+# distinctly less than this season's own games, which is exactly the
+# signal a season boundary should carry: new-season role/scheme/health
+# changes make old-season stats a weaker proxy for what a player (or a
+# team) will do now, even when the two are only a few games apart by raw
+# count.
+SEASON_DECAY = 0.6
+
+
+def game_weights(seasons, current_season):
+    """Per-game weight for weighted_mean_std: game-recency decay combined
+    with the extra per-season penalty described at SEASON_DECAY above.
+    `seasons` is most-recent-first, aligned with the values being weighted.
+    """
+    return [
+        RECENCY_DECAY**i * SEASON_DECAY ** max(0, current_season - int(season))
+        for i, season in enumerate(seasons)
+    ]
+
+
+def weighted_mean_std(values, weights):
+    """`values`/`weights` aligned, most-recent-first. Returns (mean, std, n)."""
+    n = len(values)
+    if n == 0:
+        return None, None, 0
+    values = np.array(values, dtype=float)
+    weights = np.array(weights, dtype=float)
+    mean = np.average(values, weights=weights)
+    var = np.average((values - mean) ** 2, weights=weights)
+    std = math.sqrt(var)
+    return mean, std, n
 
 NFLVERSE_PLAYER_STATS_URL = (
     "https://github.com/nflverse/nflverse-data/releases/download/player_stats/player_stats.csv"
