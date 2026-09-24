@@ -132,115 +132,175 @@ def projected_points(offense_rates, defense_rates, league_avg, segment):
     return total
 
 
-def confidence_for(home_games, away_games, home_cv, away_cv):
-    """Mirrors player props' confidence_label: a big enough sample alone
-    isn't enough for High -- the less consistent of the two teams' own
-    scoring (by coefficient of variation) also has to be reasonably low,
-    or a wildly erratic team would look just as trustworthy as a steady
-    one purely because a full prior season pads its game count.
+CONFIDENCE_HIGH_PERCENTILE = 0.75
+CONFIDENCE_LOW_PERCENTILE = 0.25
+MIN_SCORES_FOR_TIERS = 4
+
+
+def reliability_score(home_games, away_games, home_cv, away_cv):
+    """A single higher-is-better number: rewards a longer combined
+    (current + prior season) track record and penalizes the less
+    consistent of the two teams' own scoring (by coefficient of
+    variation) in this segment -- a wildly erratic team shouldn't look
+    just as trustworthy as a steady one purely because a full prior
+    season pads its game count.
     """
-    n = min(home_games, away_games)
+    games = min(home_games, away_games)
     cv = max(home_cv, away_cv)
-    if n >= 8 and cv < 0.6:
-        return "High"
-    if n >= 5:
+    return games / (1.0 + cv)
+
+
+def confidence_cutoffs(scores):
+    """Fixed absolute thresholds meant nearly every bet cleared the bar
+    for High once a full prior season was folded into the sample --
+    "High" stopped meaning anything selective. Confidence is relative
+    instead: High is reserved for the top quartile of this week's own
+    suggested bets by reliability_score, Low is the bottom quartile, and
+    everything else is Medium. Too few bets on the slate to make a
+    quartile split meaningful (e.g. a short week) falls back to treating
+    everything as Medium rather than an unstable, near-arbitrary split.
+    """
+    if len(scores) < MIN_SCORES_FOR_TIERS:
+        return None, None
+    series = pd.Series(scores, dtype=float)
+    return series.quantile(CONFIDENCE_HIGH_PERCENTILE), series.quantile(CONFIDENCE_LOW_PERCENTILE)
+
+
+def confidence_label(score, high_cutoff, low_cutoff):
+    if high_cutoff is None:
         return "Medium"
-    return "Low"
+    if score >= high_cutoff:
+        return "High"
+    if score <= low_cutoff:
+        return "Low"
+    return "Medium"
 
 
 def build_matchup_props(slate, team_rates, league_avg, quotes_by_key):
-    props = []
+    # First pass: for every matchup/segment we'll actually offer a bet on
+    # (at least one of spread/total quoted), compute its projection and
+    # reliability score. Confidence tiers are assigned afterward, relative
+    # to this week's own set of suggested bets -- see confidence_cutoffs.
+    segment_entries = []
     for g in slate.itertuples():
         home, away = g.home_team, g.away_team
         home_rates = team_rates.get(home)
         away_rates = team_rates.get(away)
         if home_rates is None or away_rates is None:
             continue
-        matchup = f"{away} @ {home}"
 
         for segment in SEGMENTS:
+            has_quote = any(
+                quotes_by_key.get((home, away, segment, market)) is not None
+                for market in ("spread", "total")
+            )
+            if not has_quote:
+                continue
             home_points = projected_points(home_rates, away_rates, league_avg, segment)
             away_points = projected_points(away_rates, home_rates, league_avg, segment)
-            model_total = home_points + away_points
-            model_margin_home = home_points - away_points
-            confidence = confidence_for(
+            score = reliability_score(
                 home_rates["games"],
                 away_rates["games"],
                 home_rates[f"points_cv_{segment}"],
                 away_rates[f"points_cv_{segment}"],
             )
+            segment_entries.append(
+                {
+                    "game": g,
+                    "home": home,
+                    "away": away,
+                    "segment": segment,
+                    "home_points": home_points,
+                    "away_points": away_points,
+                    "score": score,
+                    "games_home": home_rates["games"],
+                    "games_away": away_rates["games"],
+                }
+            )
 
-            for market in ("spread", "total"):
-                quote = quotes_by_key.get((home, away, segment, market))
-                if quote is None:
-                    continue
+    high_cutoff, low_cutoff = confidence_cutoffs([e["score"] for e in segment_entries])
 
-                if market == "spread":
-                    line = quote["home_point"]
-                    prob_a = 1 - norm.cdf(-line, loc=model_margin_home, scale=MARGIN_STD[segment])
-                    prob_b = 1 - prob_a
-                    price_a, price_b = quote["home_price"], quote["away_price"]
-                    book_a, book_b = quote["home_book"], quote["away_book"]
-                    side_a_label = f"{home} {line:+g}"
-                    side_b_label = f"{away} {-line:+g}" if line is not None else f"{away}"
-                else:
-                    line = quote["point"]
-                    prob_a = 1 - norm.cdf(line, loc=model_total, scale=TOTAL_STD[segment])
-                    prob_b = 1 - prob_a
-                    price_a, price_b = quote["over_price"], quote["under_price"]
-                    book_a, book_b = quote["over_book"], quote["under_book"]
-                    side_a_label = f"Over {line}"
-                    side_b_label = f"Under {line}"
+    props = []
+    for entry in segment_entries:
+        g = entry["game"]
+        home, away, segment = entry["home"], entry["away"], entry["segment"]
+        home_points, away_points = entry["home_points"], entry["away_points"]
+        matchup = f"{away} @ {home}"
+        model_total = home_points + away_points
+        model_margin_home = home_points - away_points
+        confidence = confidence_label(entry["score"], high_cutoff, low_cutoff)
 
-                raw_a = american_to_implied_prob(price_a)
-                raw_b = american_to_implied_prob(price_b)
-                if raw_a is not None and raw_b is not None:
-                    novig_a, novig_b = remove_vig_two_way(raw_a, raw_b)
-                else:
-                    novig_a, novig_b = raw_a, raw_b
+        for market in ("spread", "total"):
+            quote = quotes_by_key.get((home, away, segment, market))
+            if quote is None:
+                continue
 
-                edge_a = (prob_a - novig_a) if novig_a is not None else None
-                edge_b = (prob_b - novig_b) if novig_b is not None else None
-                candidates = [(s, e) for s, e in (("a", edge_a), ("b", edge_b)) if e is not None]
-                if not candidates:
-                    continue
-                recommended_side, recommended_edge = max(candidates, key=lambda x: x[1])
+            if market == "spread":
+                line = quote["home_point"]
+                prob_a = 1 - norm.cdf(-line, loc=model_margin_home, scale=MARGIN_STD[segment])
+                prob_b = 1 - prob_a
+                price_a, price_b = quote["home_price"], quote["away_price"]
+                book_a, book_b = quote["home_book"], quote["away_book"]
+                side_a_label = f"{home} {line:+g}"
+                side_b_label = f"{away} {-line:+g}" if line is not None else f"{away}"
+            else:
+                line = quote["point"]
+                prob_a = 1 - norm.cdf(line, loc=model_total, scale=TOTAL_STD[segment])
+                prob_b = 1 - prob_a
+                price_a, price_b = quote["over_price"], quote["under_price"]
+                book_a, book_b = quote["over_book"], quote["under_book"]
+                side_a_label = f"Over {line}"
+                side_b_label = f"Under {line}"
 
-                props.append(
-                    {
-                        "matchup": matchup,
-                        "home_team": home,
-                        "away_team": away,
-                        "game_date": g.game_date,
-                        "time_slot": g.time_slot,
-                        "segment": segment,
-                        "segment_label": SEGMENT_LABELS[segment],
-                        "market": market,
-                        "market_label": "Spread" if market == "spread" else "Total",
-                        "line": line,
-                        "side_a_label": side_a_label,
-                        "side_b_label": side_b_label,
-                        "price_a": price_a,
-                        "price_b": price_b,
-                        "book_a": book_a,
-                        "book_b": book_b,
-                        "model_prob_a": round(prob_a, 4),
-                        "model_prob_b": round(prob_b, 4),
-                        "implied_prob_a": round(novig_a, 4) if novig_a is not None else None,
-                        "implied_prob_b": round(novig_b, 4) if novig_b is not None else None,
-                        "edge_a": round(edge_a, 4) if edge_a is not None else None,
-                        "edge_b": round(edge_b, 4) if edge_b is not None else None,
-                        "recommended_side": recommended_side,
-                        "recommended_edge": round(recommended_edge, 4),
-                        "model_home_points": round(home_points, 1),
-                        "model_away_points": round(away_points, 1),
-                        "model_total": round(model_total, 1),
-                        "model_margin_home": round(model_margin_home, 1),
-                        "sample_games_home": home_rates["games"],
-                        "sample_games_away": away_rates["games"],
-                        "confidence": confidence,
-                    }
-                )
+            raw_a = american_to_implied_prob(price_a)
+            raw_b = american_to_implied_prob(price_b)
+            if raw_a is not None and raw_b is not None:
+                novig_a, novig_b = remove_vig_two_way(raw_a, raw_b)
+            else:
+                novig_a, novig_b = raw_a, raw_b
+
+            edge_a = (prob_a - novig_a) if novig_a is not None else None
+            edge_b = (prob_b - novig_b) if novig_b is not None else None
+            candidates = [(s, e) for s, e in (("a", edge_a), ("b", edge_b)) if e is not None]
+            if not candidates:
+                continue
+            recommended_side, recommended_edge = max(candidates, key=lambda x: x[1])
+
+            props.append(
+                {
+                    "matchup": matchup,
+                    "home_team": home,
+                    "away_team": away,
+                    "game_date": g.game_date,
+                    "time_slot": g.time_slot,
+                    "segment": segment,
+                    "segment_label": SEGMENT_LABELS[segment],
+                    "market": market,
+                    "market_label": "Spread" if market == "spread" else "Total",
+                    "line": line,
+                    "side_a_label": side_a_label,
+                    "side_b_label": side_b_label,
+                    "price_a": price_a,
+                    "price_b": price_b,
+                    "book_a": book_a,
+                    "book_b": book_b,
+                    "model_prob_a": round(prob_a, 4),
+                    "model_prob_b": round(prob_b, 4),
+                    "implied_prob_a": round(novig_a, 4) if novig_a is not None else None,
+                    "implied_prob_b": round(novig_b, 4) if novig_b is not None else None,
+                    "edge_a": round(edge_a, 4) if edge_a is not None else None,
+                    "edge_b": round(edge_b, 4) if edge_b is not None else None,
+                    "recommended_side": recommended_side,
+                    "recommended_edge": round(recommended_edge, 4),
+                    "model_home_points": round(home_points, 1),
+                    "model_away_points": round(away_points, 1),
+                    "model_total": round(model_total, 1),
+                    "model_margin_home": round(model_margin_home, 1),
+                    "sample_games_home": entry["games_home"],
+                    "sample_games_away": entry["games_away"],
+                    "confidence": confidence,
+                }
+            )
     return props
 
 
