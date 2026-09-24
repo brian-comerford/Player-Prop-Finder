@@ -217,6 +217,40 @@ export default function InfoPage({
         </p>
       </Section>
 
+      <Section title="Full-game & half spreads/totals (the Games tab)">
+        <p>
+          The Games tab works the same way as player props, but at the team level: instead of
+          projecting a player's stat line, it projects how many points each team will score.
+          For each team, the model looks at how often their offense produces rushing touchdowns,
+          passing touchdowns, and field goals per game, then adjusts that rate by how often the
+          upcoming opponent's defense allows the same thing compared to a league-average defense
+          &mdash; the same opponent-factor idea used for player props. Those adjusted rates are
+          converted to points and summed to get each team's projected score, which in turn gives
+          a projected spread (the scoring margin) and total (combined score).
+        </p>
+        <p>
+          Three segments are covered: full game, 1st half, and 2nd half, each modeled
+          separately from play-by-play data split by half &mdash; a team's 1st-half scoring
+          tendencies can look quite different from its 2nd-half ones (e.g. a run-heavy team that
+          protects a lead late), so the half markets aren't just the full-game number cut in
+          half.
+        </p>
+        <p>
+          The same recency and season weighting used for player props applies here: more recent
+          games count more than older ones, and games from the current season count
+          significantly more than games from last season at the same recency. Stats are never
+          pulled from further back than one prior season.
+        </p>
+        <p>
+          As with player props, Model % is this projection converted to a win probability for
+          each side of the spread or total, Book % is the sportsbook's no-vig implied
+          probability, and Edge is the difference between the two. Confidence follows the same
+          idea as well &mdash; it's driven by how many recent games both teams have played,
+          since a projection built on a longer track record is more trustworthy than one from a
+          team's first few games of the season.
+        </p>
+      </Section>
+
       <Section title="Track record">
         <p>
           The banner at the top shows how the model's own picks have actually done: every
@@ -262,6 +296,11 @@ export default function InfoPage({
           compare the two. If no odds source is configured at all, the app shows clearly-labeled
           sample odds instead (built from real stats, but with synthetic lines) so the page
           still has something to show. Everything refreshes automatically about once a day.
+        </p>
+        <p>
+          Spread and total lines on the Games tab come from the same Odds API source, but unlike
+          player props there's no sample-odds fallback for them &mdash; if no odds source is
+          configured, the Games tab simply shows no bets rather than synthetic lines.
         </p>
       </Section>
 
