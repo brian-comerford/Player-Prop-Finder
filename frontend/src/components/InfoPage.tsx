@@ -244,13 +244,17 @@ export default function InfoPage({
         <p>
           As with player props, Model % is this projection converted to a win probability for
           each side of the spread or total, Book % is the sportsbook's no-vig implied
-          probability, and Edge is the difference between the two. Confidence follows the same
-          idea as well: both teams need a long enough recent track record, and neither team's
-          own scoring in that segment can be too erratic game to game &mdash; a team that swings
-          wildly from a shutout to 30 points is a harder team to project confidently than a
-          steady one, even with the same number of games on record. This is also why 1st/2nd
-          half confidence tends to run lower than full-game confidence: a half is a smaller,
-          noisier sample of a team's scoring than the whole game is.
+          probability, and Edge is the difference between the two. Confidence works a bit
+          differently here: rather than a fixed bar every bet either clears or doesn't, each
+          suggested bet is scored on how long a track record both teams have and how consistent
+          (not erratic game to game) their own scoring in that segment has been, then ranked
+          against every other bet on that week's slate. <strong>High</strong> is reserved for
+          the top 25% of that week's bets by this score, <strong>Low</strong> for the bottom 25%,
+          and <strong>Medium</strong> for everything in between &mdash; so High stays a
+          genuinely selective label instead of describing nearly every bet, and there's always a
+          real bottom tier too. This also naturally means 1st/2nd half bets earn a High
+          confidence less often than full-game bets: a half is a smaller, noisier sample of a
+          team's scoring, so it rarely ranks among the week's most consistent projections.
         </p>
       </Section>
 
