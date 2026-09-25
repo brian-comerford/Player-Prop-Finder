@@ -192,7 +192,10 @@ export default function InfoPage({
             judged separately from its funnel to wide receivers and tight ends, so a running
             back's receiving production is compared to what that defense allows to running
             backs, not to wideouts. Falls back to an all-positions blended factor when the
-            position-specific sample is too thin.
+            position-specific sample is too thin. Weighted the same way the player's own
+            projection is: a defense's more recent games count more, and its games from the
+            current season count more than last season's at the same recency &mdash; a defense's
+            personnel and scheme can change season to season just like an offense's can.
           </Term>
           <Term term="ESPN 2nd opinion">
             Where ESPN publishes its own weekly fantasy projection for this player and stat, it
