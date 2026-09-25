@@ -199,13 +199,18 @@ export default function InfoPage({
           </Term>
           <Term term="ESPN 2nd opinion">
             Where ESPN publishes its own weekly fantasy projection for this player and stat, it
-            shows up here as an outside sanity check, with a plain read on how closely it
-            lines up with this app's own number: &quot;agrees,&quot; &quot;roughly agrees,&quot;
-            or &quot;disagrees.&quot; Two independently-built projections landing in the same
-            place is modest evidence the number isn't a fluke, and a real disagreement is a
-            reason for more caution &mdash; each shifts Confidence by at most one tier, in that
-            direction, never overriding it outright. Missing for players ESPN hasn't projected
-            for that week yet.
+            shows up here as an outside sanity check on the specific bet, not just a raw-number
+            comparison: if ESPN's own projection falls on the opposite side of the betting line
+            from the side being recommended here, that's always a &quot;disagrees&quot; &mdash;
+            two projections can look numerically close and still imply opposite outcomes for a
+            line sitting between them. Only when ESPN lands on the same side does it get graded
+            by how close the two numbers are: &quot;agrees&quot; or &quot;roughly agrees.&quot;
+            Two independently-built projections landing in the same place is modest evidence the
+            number isn't a fluke, and a real disagreement is a reason for more caution &mdash;
+            each shifts Confidence by at most one tier, in that direction, never overriding it
+            outright. Missing for players ESPN hasn't projected for that week yet, or for
+            Anytime TD (a yes/no market with no line for ESPN's number to cross, so it falls
+            back to a plain numeric comparison there).
           </Term>
         </dl>
       </Section>

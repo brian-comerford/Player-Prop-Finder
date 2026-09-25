@@ -471,14 +471,31 @@ def espn_projected_value(market, espn_stats):
     )
 
 
-def espn_agreement_level(our_value, espn_value):
-    """How closely ESPN's independent projection matches our own, as a
-    relative spread between the two -- same bucketing (<=15% strong,
-    <=35% moderate, else split) as a working reference implementation
-    that blends multiple fantasy projection sources this same way.
+def espn_agreement_level(our_value, espn_value, line=None, recommended_side=None):
+    """How closely ESPN's independent projection matches our own.
+
+    For a numeric-line market, raw percentage closeness between the two
+    projections isn't actually the right test: two values can be close in
+    percentage terms while still landing on opposite sides of a line that
+    sits between them (e.g. our own 155.3 vs. ESPN's 212.9 on a 190.5
+    line -- only a 31% relative spread, but one implies Under and the
+    other implies Over). That's a real disagreement about the bet, not
+    "roughly agrees," so when ESPN's own number crosses to the opposite
+    side of the line from the side we're recommending, this always
+    reports "split" regardless of how close the raw numbers are. Only
+    same-side pairs get graded by relative spread into "strong"/
+    "moderate" (<=15% / <=35%, else "split"), the same bucketing as a
+    working reference implementation that blends multiple fantasy
+    projection sources this same way. Binary markets (no line, e.g.
+    Anytime TD) fall back to that plain percentage comparison, since
+    there's no line for ESPN's number to cross.
     """
     if our_value is None or espn_value is None:
         return None
+    if line is not None and recommended_side is not None:
+        espn_side = "over" if espn_value >= line else "under"
+        if espn_side != recommended_side:
+            return "split"
     avg = (our_value + espn_value) / 2
     if avg <= 0:
         return None
@@ -661,7 +678,7 @@ def main():
             injury_status = f"Questionable ({injury['injury']})" if injury.get("injury") else "Questionable"
 
         espn_value = espn_projected_value(q["market"], espn_projections.get(base["player_id"]))
-        agreement = espn_agreement_level(projected_mean, espn_value)
+        agreement = espn_agreement_level(projected_mean, espn_value, q["point"], recommended_side)
         confidence = adjust_confidence(
             confidence_label(base["games"], base["mean"], base["std"]), agreement
         )
