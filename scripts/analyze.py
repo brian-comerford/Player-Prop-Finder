@@ -113,7 +113,44 @@ def build_player_baselines(stats_df, current_season):
     return baselines, team_by_player
 
 
-def build_defense_factors(stats_df):
+def weighted_defense_factors(rows, current_season, league_avg):
+    """Each opponent's recency/season-weighted allowed rate for `rows`'
+    stat, relative to `league_avg` -- same game_weights a player's own
+    baseline uses, applied here so a defense's current-season games count
+    significantly more than last season's at the same recency. A defense's
+    personnel and scheme turn over between seasons just like an offense's
+    can, so there's no reason to weight "how good is this defense" any
+    differently than "how good is this player." Bounded the same as every
+    other matchup factor in this file.
+
+    Unlike a player's own game log (one row per week), each week here has
+    one row per opposing skill player who touched the ball against this
+    defense -- game_weights' games-back index has to be computed off the
+    defense's distinct (season, week) games, not off row position, or
+    everything from the single most recent game (its ~10 rows) would eat
+    nearly the whole decay curve meant for "10 games back."
+    """
+    factors = {}
+    for team, group in rows.groupby("opponent_team"):
+        game_keys = (
+            group[["season", "week"]].drop_duplicates().sort_values(["season", "week"], ascending=False)
+        )
+        game_weight_by_key = dict(
+            zip(
+                map(tuple, game_keys.itertuples(index=False, name=None)),
+                game_weights(game_keys["season"].tolist(), current_season),
+            )
+        )
+        row_weights = [
+            game_weight_by_key[(season, week)]
+            for season, week in zip(group["season"], group["week"])
+        ]
+        mean, _, _ = weighted_mean_std(group["_val"].tolist(), row_weights)
+        factors[team] = min(max(mean / league_avg, DEFENSE_FACTOR_BOUNDS[0]), DEFENSE_FACTOR_BOUNDS[1])
+    return factors
+
+
+def build_defense_factors(stats_df, current_season):
     """{market_key: {"overall": {team: factor}, "by_position": {position: {team: factor}}}}
 
     How much a defense inflates or suppresses opponents' production in a
@@ -126,6 +163,7 @@ def build_defense_factors(stats_df):
     Falls back to one blended team factor (all positions combined) when a
     position-specific bucket is too thin to trust.
     """
+    stats_df = stats_df.sort_values(["season", "week"], ascending=False)
     factors = {}
     for mkey, cfg in MARKETS.items():
         per_game = stats_df.copy()
@@ -138,8 +176,7 @@ def build_defense_factors(stats_df):
         if not league_avg:
             continue
 
-        overall_by_team = per_game.groupby("opponent_team")["_val"].mean()
-        overall_factors = (overall_by_team / league_avg).clip(*DEFENSE_FACTOR_BOUNDS).to_dict()
+        overall_factors = weighted_defense_factors(per_game, current_season, league_avg)
 
         by_position = {}
         for position in cfg["position_group"]:
@@ -148,9 +185,7 @@ def build_defense_factors(stats_df):
             if not pos_league_avg:
                 continue
             row_counts = pos_rows.groupby("opponent_team")["_val"].count()
-            pos_factors = (pos_rows.groupby("opponent_team")["_val"].mean() / pos_league_avg).clip(
-                *DEFENSE_FACTOR_BOUNDS
-            )
+            pos_factors = weighted_defense_factors(pos_rows, current_season, pos_league_avg)
             by_position[position] = {
                 team: value
                 for team, value in pos_factors.items()
@@ -523,7 +558,7 @@ def main():
     # the rare offseason case where there's no upcoming week at all.
     current_season = season_week["upcoming_season"] or int(stats_df["season"].max())
     baselines, team_by_player = build_player_baselines(stats_df, current_season)
-    defense_factors = build_defense_factors(stats_df)
+    defense_factors = build_defense_factors(stats_df, current_season)
     defense_tier_cache = {}
 
     inactive_players = set()
