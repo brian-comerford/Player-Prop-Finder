@@ -52,6 +52,13 @@ jobs:
           curl -sSL --fail https://brian-comerford.github.io/Player-Prop-Finder/data/game_props.json -o data/game_props.json
           curl -sSL --fail https://brian-comerford.github.io/Player-Prop-Finder/data/game_meta.json -o data/game_meta.json
 
+      # On a race with deploy.yml (or another grade-only run) pushing at
+      # the same time, favor this run's own just-computed content
+      # (-X ours) rather than a plain rebase, which fails outright on a
+      # real text conflict inside a regenerated JSON file -- either run's
+      # recompute is a complete, valid state on its own, so there's
+      # nothing to reconcile line-by-line; the losing run's data simply
+      # gets recomputed fresh the next time it runs.
       - name: Commit updated pick history
         run: |
           git config user.name "github-actions[bot]"
@@ -61,7 +68,7 @@ jobs:
             echo "No pick-history changes to commit."
           else
             git commit -m "Refresh track record [skip ci]"
-            git push || (git pull --rebase && git push) || echo "::warning::Couldn't push pick history this run -- will retry next run."
+            git push || (git fetch origin main && git merge -X ours --no-edit origin/main && git push) || echo "::warning::Couldn't push pick history this run -- will retry next run."
           fi
 
       - uses: actions/setup-node@v4
