@@ -67,6 +67,7 @@ export interface TrackRecord {
   overall: HitRateSummary | null;
   by_confidence: Partial<Record<Confidence, HitRateSummary>>;
   weeks_graded: number;
+  week_in_progress: boolean;
   updated_at: string;
 }
 

@@ -281,13 +281,33 @@ def snapshot_current_week_picks(props, season, week):
     """Writes data/history/picks_{season}_wk{week}.json: a compact record of
     every current recommendation (side, line, model probability, edge,
     confidence), so it can be graded against what actually happened once
-    the games are played. Overwritten on every run up until kickoff, since
-    the model's own inputs (odds, injuries, usage) can still change during
-    the week -- the last snapshot before the games start is the one that
-    actually gets graded.
+    a game is played.
+
+    A given game's picks refresh on every run right up until that game's
+    own kickoff -- the model's own inputs (odds, injuries, usage) can
+    still change during the week, so the last snapshot before a game
+    starts is the one that actually gets graded. But an NFL week spans
+    Thursday through Monday, and a book stops quoting a game's props the
+    moment it kicks off, so `props` on any given run only ever contains
+    still-upcoming games within the week. Overwriting the whole file with
+    just that would silently erase an earlier game's frozen picks (e.g.
+    Thursday night's) the moment its odds disappeared, well before the
+    rest of the week is even played -- so this merges instead: a team
+    with no props in this run (its game has already started) keeps
+    whatever was last snapshotted for it, and only teams still present in
+    `props` get refreshed.
     """
     os.makedirs(HISTORY_DIR, exist_ok=True)
-    picks = [
+    path = os.path.join(HISTORY_DIR, f"picks_{season}_wk{week}.json")
+
+    fresh_teams = {p["team"] for p in props}
+    carried_over = []
+    if os.path.exists(path):
+        with open(path) as f:
+            previous = json.load(f)
+        carried_over = [pick for pick in previous.get("picks", []) if pick["team"] not in fresh_teams]
+
+    fresh_picks = [
         {
             "player_id": p["player_id"],
             "player_name": p["player_name"],
@@ -303,17 +323,20 @@ def snapshot_current_week_picks(props, season, week):
         }
         for p in props
     ]
-    path = os.path.join(HISTORY_DIR, f"picks_{season}_wk{week}.json")
+    picks = carried_over + fresh_picks
     with open(path, "w") as f:
         json.dump({"season": season, "week": week, "generated_at": utcnow_iso(), "picks": picks}, f)
 
 
 def actual_value_for(stats_df, player_id, season, week, market):
-    """The real per-game value for this player/market in a past week
-    (summed from the same stat columns the projection itself is built
-    from), or None if they have no row for that week at all -- didn't
-    play (bye, injury, inactive), so there's nothing to grade a pick
-    against.
+    """The real per-game value for this player/market in a week whose
+    game has already finished (summed from the same stat columns the
+    projection itself is built from), or None if they have no row for
+    that week at all -- didn't play (inactive, injury, healthy scratch),
+    so there's nothing to grade a pick against. Callers are expected to
+    only call this once the player's own game is confirmed finished (see
+    completed_game_teams) -- a missing row can't otherwise be told apart
+    from "hasn't played yet this week."
     """
     rows = stats_df[
         (stats_df["player_id"] == player_id) & (stats_df["season"] == season) & (stats_df["week"] == week)
@@ -327,28 +350,62 @@ def actual_value_for(stats_df, player_id, season, week, market):
     return float(total)
 
 
-def grade_past_weeks(stats_df, current_season, current_week):
-    """Grades every snapshotted week that's already been played --
-    (season, week) strictly before the week currently being projected for
-    -- and hasn't been graded yet (no matching results file). Idempotent:
-    safe to call on every run, since a week already graded is skipped.
+def completed_game_teams(games_df, season, week):
+    """{team, ...} for every team whose (season, week) game already has a
+    final score. An NFL week's games finish on staggered days (Thursday
+    night, Sunday early/late, Sunday night, Monday), so this is checked
+    per game rather than assuming a whole week is done at once.
+    """
+    if games_df.empty:
+        return set()
+    rows = games_df[
+        (games_df["season"] == season)
+        & (games_df["week"] == week)
+        & games_df["home_score"].notna()
+        & (games_df["home_score"] != "")
+    ]
+    teams = set()
+    for g in rows.itertuples():
+        teams.add(g.home_team)
+        teams.add(g.away_team)
+    return teams
+
+
+def grade_past_weeks(stats_df, games_df, current_season, current_week):
+    """Grades every snapshotted pick whose own game has already finished,
+    across every week up through the one currently being projected for --
+    updating progressively as games complete throughout the week (e.g.
+    Thursday night's picks can be graded while Sunday's are still to come)
+    rather than waiting for an entire week to be over. Idempotent and
+    cheap to call on every run: a week whose results are already fully
+    graded is skipped, and a week still in progress is recomputed from
+    scratch each time so newly finished games are picked up without
+    needing to merge with a prior partial result.
     """
     if current_week is None or not os.path.isdir(HISTORY_DIR):
         return
     for fname in sorted(os.listdir(HISTORY_DIR)):
         if not fname.startswith("picks_") or not fname.endswith(".json"):
             continue
-        results_path = os.path.join(HISTORY_DIR, fname.replace("picks_", "results_", 1))
-        if os.path.exists(results_path):
-            continue
         with open(os.path.join(HISTORY_DIR, fname)) as f:
             snapshot = json.load(f)
         season, week = snapshot["season"], snapshot["week"]
-        if (season, week) >= (current_season, current_week):
-            continue  # not played yet
+        if (season, week) > (current_season, current_week):
+            continue  # future week, nothing to grade yet
 
+        results_path = os.path.join(HISTORY_DIR, fname.replace("picks_", "results_", 1))
+        if os.path.exists(results_path):
+            with open(results_path) as f:
+                if json.load(f).get("fully_graded"):
+                    continue
+
+        finished_teams = completed_game_teams(games_df, season, week)
         graded = []
+        pending = 0
         for pick in snapshot["picks"]:
+            if pick["team"] not in finished_teams:
+                pending += 1
+                continue
             actual = actual_value_for(stats_df, pick["player_id"], season, week, pick["market"])
             if actual is None:
                 continue
@@ -356,9 +413,20 @@ def grade_past_weeks(stats_df, current_season, current_week):
             hit = side_hits(binary, pick["side"], pick["line"], actual)
             graded.append({**pick, "actual_value": round(actual, 1), "hit": hit})
 
+        fully_graded = pending == 0
         with open(results_path, "w") as f:
-            json.dump({"season": season, "week": week, "graded_at": utcnow_iso(), "picks": graded}, f)
-        print(f"  Graded {season} wk{week}: {len(graded)}/{len(snapshot['picks'])} picks (rest didn't play)")
+            json.dump(
+                {
+                    "season": season,
+                    "week": week,
+                    "graded_at": utcnow_iso(),
+                    "fully_graded": fully_graded,
+                    "picks": graded,
+                },
+                f,
+            )
+        status = "fully graded" if fully_graded else f"{pending} picks still pending (games not final yet)"
+        print(f"  Graded {season} wk{week}: {len(graded)}/{len(snapshot['picks'])} picks ({status})")
 
 
 def build_track_record():
@@ -375,14 +443,22 @@ def build_track_record():
 
     all_picks = []
     weeks_graded = 0
+    week_in_progress = False
     if os.path.isdir(HISTORY_DIR):
         for fname in sorted(os.listdir(HISTORY_DIR)):
             if not fname.startswith("results_") or not fname.endswith(".json"):
                 continue
             with open(os.path.join(HISTORY_DIR, fname)) as f:
                 data = json.load(f)
+            # A week's picks count toward the hit rate the moment their
+            # own game is graded, even before the rest of that week's
+            # games are final -- only the "N graded weeks" figure below
+            # waits for a week to be fully done.
             all_picks.extend(data["picks"])
-            weeks_graded += 1
+            if data.get("fully_graded"):
+                weeks_graded += 1
+            elif data["picks"]:
+                week_in_progress = True
 
     by_confidence = {}
     for tier in ("High", "Medium", "Low"):
@@ -394,6 +470,7 @@ def build_track_record():
         "overall": summarize(all_picks),
         "by_confidence": by_confidence,
         "weeks_graded": weeks_graded,
+        "week_in_progress": week_in_progress,
         "updated_at": utcnow_iso(),
     }
 
@@ -549,10 +626,12 @@ def main():
         with open(espn_projections_path) as f:
             espn_projections = json.load(f)
 
+    games_path = os.path.join(DATA_DIR, "games_recent.csv")
+    games = pd.read_csv(games_path, low_memory=False) if os.path.exists(games_path) else pd.DataFrame()
+
     game_lookup = {}
     matchup_options = []
-    if season_week["upcoming_season"] is not None:
-        games = pd.read_csv(os.path.join(DATA_DIR, "games_recent.csv"), low_memory=False)
+    if season_week["upcoming_season"] is not None and not games.empty:
         slate = games[
             (games["season"] == season_week["upcoming_season"])
             & (games["week"] == season_week["upcoming_week"])
@@ -792,7 +871,7 @@ def main():
             f"Snapshotted {len(props)} picks for {season_week['upcoming_season']} "
             f"wk{season_week['upcoming_week']} -> data/history/"
         )
-    grade_past_weeks(stats_df, current_season, season_week["upcoming_week"])
+    grade_past_weeks(stats_df, games, current_season, season_week["upcoming_week"])
 
     track_record = build_track_record()
     with open(os.path.join(DATA_DIR, "track_record.json"), "w") as f:
