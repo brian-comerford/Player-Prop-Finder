@@ -1,0 +1,95 @@
+name: Refresh track record only (no odds API)
+
+# Manually triggered, e.g. right after a batch of games finishes on a
+# Sunday, to update graded results and the track record without spending
+# Odds API quota. Re-fetches only the free nflverse/ESPN data (player
+# stats, schedule/final scores) via scripts/grade_only.py, then rebuilds
+# and redeploys the site using the current live props/game-props data
+# unchanged (fetched from the site itself, since that data isn't
+# committed to the repo).
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install pipeline dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Re-fetch stats/schedule and re-grade (no odds API)
+        working-directory: scripts
+        run: python grade_only.py
+
+      # props.json/meta.json/game_props.json/game_meta.json aren't
+      # committed to the repo (see .gitignore) since they're normally
+      # rebuilt fresh from live odds every run. This run deliberately
+      # skips the odds fetch, so it pulls the currently-deployed copies
+      # from the live site instead -- unchanged from the last full run,
+      # since no new odds were fetched to change them.
+      - name: Fetch current live props/game data (unchanged since last full run)
+        run: |
+          mkdir -p data
+          curl -sSL --fail https://brian-comerford.github.io/Player-Prop-Finder/data/props.json -o data/props.json
+          curl -sSL --fail https://brian-comerford.github.io/Player-Prop-Finder/data/meta.json -o data/meta.json
+          curl -sSL --fail https://brian-comerford.github.io/Player-Prop-Finder/data/game_props.json -o data/game_props.json
+          curl -sSL --fail https://brian-comerford.github.io/Player-Prop-Finder/data/game_meta.json -o data/game_meta.json
+
+      - name: Commit updated pick history
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/history
+          if git diff --cached --quiet; then
+            echo "No pick-history changes to commit."
+          else
+            git commit -m "Refresh track record [skip ci]"
+            git push || (git pull --rebase && git push) || echo "::warning::Couldn't push pick history this run -- will retry next run."
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend (pulls in the freshly generated data)
+        working-directory: frontend
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
