@@ -42,8 +42,12 @@ export default function Banner({ meta, trackRecord }: { meta: Meta; trackRecord:
       {trackRecord?.overall && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
           <strong>Track record:</strong> {pct(trackRecord.overall.hit_rate)} of picks have hit (
-          {trackRecord.overall.hits}/{trackRecord.overall.picks}) across {trackRecord.weeks_graded}{" "}
-          graded {trackRecord.weeks_graded === 1 ? "week" : "weeks"}
+          {trackRecord.overall.hits}/{trackRecord.overall.picks})
+          {trackRecord.weeks_graded > 0 && (
+            <> across {trackRecord.weeks_graded} graded {trackRecord.weeks_graded === 1 ? "week" : "weeks"}</>
+          )}
+          {trackRecord.week_in_progress &&
+            (trackRecord.weeks_graded > 0 ? " plus this week's games as they finish" : " so far this week")}
           {trackRecord.weeks_graded < 4 && " — still an early sample, see the Info tab"}
           {CONFIDENCE_TIERS.some((tier) => trackRecord.by_confidence[tier]) && (
             <>

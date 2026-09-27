@@ -268,13 +268,17 @@ export default function InfoPage({
 
       <Section title="Track record">
         <p>
-          The banner at the top shows how the model's own picks have actually done: every
-          week, the recommended side for every prop is saved right before that week's games
-          start, then graded against the real final result once they're over &mdash; an Over
-          on 65.5 rushing yards is a hit if the player actually ran for more than that,
-          regardless of what the model would say if you re-ran it today with hindsight. That
-          hit rate, and the breakdown by Confidence tier, is a running total across every
-          graded week so far, not just a recent hot or cold streak.
+          The banner at the top shows how the model's own picks have actually done: for every
+          player and stat, the recommended side is saved right before that specific game
+          kicks off (each team's picks freeze independently, at its own kickoff, not the whole
+          week at once), then graded against the real final result once the game is over
+          &mdash; an Over on 65.5 rushing yards is a hit if the player actually ran for more
+          than that, regardless of what the model would say if you re-ran it today with
+          hindsight. Since an NFL week's games finish on staggered days, this updates
+          throughout the week as each game wraps &mdash; Thursday night's picks can already be
+          graded while Sunday's games are still being played. That hit rate, and the breakdown
+          by Confidence tier, is a running total across every graded pick so far, not just a
+          recent hot or cold streak.
         </p>
         <p>
           Early on, this number will bounce around a lot &mdash; a few dozen picks from one or
