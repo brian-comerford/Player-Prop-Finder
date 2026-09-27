@@ -48,10 +48,15 @@ jobs:
       # layer. A no-op commit (nothing changed) is expected on most runs.
       #
       # Deliberately non-fatal to the job: this is a secondary feature, and
-      # a rare push race (e.g. a manual re-run overlapping the schedule)
-      # shouldn't ever block the actual site deploy below. A dropped push
-      # here just means the next run re-derives and re-commits the same
-      # result -- grading is idempotent, so nothing is lost.
+      # a rare push race (e.g. a manual re-run overlapping the schedule, or
+      # this workflow racing grade-only.yml) shouldn't ever block the
+      # actual site deploy below. On a race, favor this run's own
+      # just-computed content (-X ours) rather than a plain rebase, which
+      # fails outright on a real text conflict inside a regenerated JSON
+      # file -- either run's recompute is a complete, valid state on its
+      # own, so there's nothing to reconcile line-by-line; the losing
+      # run's data simply gets recomputed fresh the next time it runs,
+      # since grading is idempotent.
       - name: Commit updated pick history
         run: |
           git config user.name "github-actions[bot]"
@@ -61,7 +66,7 @@ jobs:
             echo "No pick-history changes to commit."
           else
             git commit -m "Update pick history [skip ci]"
-            git push || (git pull --rebase && git push) || echo "::warning::Couldn't push pick history this run -- will retry next run."
+            git push || (git fetch origin main && git merge -X ours --no-edit origin/main && git push) || echo "::warning::Couldn't push pick history this run -- will retry next run."
           fi
 
       - uses: actions/setup-node@v4
