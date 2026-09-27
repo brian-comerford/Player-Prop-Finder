@@ -512,6 +512,7 @@ def build_track_record_detail():
                         "line": p["line"],
                         "side": p["side"],
                         "confidence": p["confidence"],
+                        "edge": p["edge"],
                         "actual_value": p["actual_value"],
                         "hit": p["hit"],
                         "margin": p["margin"],
