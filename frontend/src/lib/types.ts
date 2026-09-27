@@ -82,6 +82,7 @@ export interface GradedPick {
   line: number | null;
   side: Side;
   confidence: Confidence;
+  edge: number;
   actual_value: number;
   hit: boolean;
   margin: number | null;

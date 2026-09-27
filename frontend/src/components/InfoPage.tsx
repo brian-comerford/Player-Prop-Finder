@@ -281,10 +281,13 @@ export default function InfoPage({
           graded pick so far, not just a recent hot or cold streak.
         </p>
         <p>
-          Opening the panel also lists every graded pick individually, so you can see exactly
-          which ones hit and, for the ones that missed, how close they came &mdash; e.g. a pick
-          needing Over 65.5 that the player finished at 63 missed by 2.5, shown right next to
-          the miss.
+          Opening the panel also lists every graded pick individually, grouped by week and
+          collapsed by default so it doesn't dump the whole season on you at once &mdash;
+          expand a week to see exactly which picks hit and, for the ones that missed, how
+          close they came (e.g. a pick needing Over 65.5 that the player finished at 63 missed
+          by 2.5). A Min. edge slider and Confidence filter above the list narrow it down to a
+          specific slice, e.g. only High-confidence picks above 15% edge, with the hit rate for
+          just that filtered set shown above the results.
         </p>
         <p>
           Early on, this number will bounce around a lot &mdash; a few dozen picks from one or
