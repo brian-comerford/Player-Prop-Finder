@@ -411,7 +411,17 @@ def grade_past_weeks(stats_df, games_df, current_season, current_week):
                 continue
             binary = MARKETS[pick["market"]].get("binary", False)
             hit = side_hits(binary, pick["side"], pick["line"], actual)
-            graded.append({**pick, "actual_value": round(actual, 1), "hit": hit})
+            # Signed distance between the actual value and the line, in the
+            # direction the pick needed: positive means it cleared the line
+            # (matches hit=True, and shows by how much), negative means it
+            # fell short by that much -- so abs(margin) on a miss is exactly
+            # "how close it came." Not meaningful for a binary yes/no market
+            # (Anytime TD has no line to measure distance from).
+            if binary:
+                margin = None
+            else:
+                margin = round((actual - pick["line"]) if pick["side"] == "over" else (pick["line"] - actual), 1)
+            graded.append({**pick, "actual_value": round(actual, 1), "hit": hit, "margin": margin})
 
         fully_graded = pending == 0
         with open(results_path, "w") as f:
@@ -473,6 +483,42 @@ def build_track_record():
         "week_in_progress": week_in_progress,
         "updated_at": utcnow_iso(),
     }
+
+
+def build_track_record_detail():
+    """Every graded pick, with enough detail to show which ones hit and how
+    close the misses were (see the `margin` field grade_past_weeks writes).
+    Kept in its own file rather than folded into track_record.json's small
+    summary, since this grows every week all season and should only be
+    fetched when a user actually opens the track record panel.
+    """
+    picks = []
+    if os.path.isdir(HISTORY_DIR):
+        for fname in sorted(os.listdir(HISTORY_DIR)):
+            if not fname.startswith("results_") or not fname.endswith(".json"):
+                continue
+            with open(os.path.join(HISTORY_DIR, fname)) as f:
+                data = json.load(f)
+            for p in data["picks"]:
+                picks.append(
+                    {
+                        "season": data["season"],
+                        "week": data["week"],
+                        "player_name": p["player_name"],
+                        "position": p["position"],
+                        "team": p["team"],
+                        "opponent": p["opponent"],
+                        "market_label": MARKETS[p["market"]]["label"],
+                        "line": p["line"],
+                        "side": p["side"],
+                        "confidence": p["confidence"],
+                        "actual_value": p["actual_value"],
+                        "hit": p["hit"],
+                        "margin": p["margin"],
+                    }
+                )
+    picks.sort(key=lambda p: (p["season"], p["week"]), reverse=True)
+    return {"updated_at": utcnow_iso(), "picks": picks}
 
 
 def classify_time_slot(weekday, gametime):
@@ -877,6 +923,14 @@ def main():
     with open(os.path.join(DATA_DIR, "track_record.json"), "w") as f:
         json.dump(track_record, f)
     print(f"Wrote track record ({track_record['weeks_graded']} weeks graded) -> data/track_record.json")
+
+    track_record_detail = build_track_record_detail()
+    with open(os.path.join(DATA_DIR, "track_record_detail.json"), "w") as f:
+        json.dump(track_record_detail, f)
+    print(
+        f"Wrote track record detail ({len(track_record_detail['picks'])} graded picks) "
+        "-> data/track_record_detail.json"
+    )
 
 
 if __name__ == "__main__":

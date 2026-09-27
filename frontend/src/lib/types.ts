@@ -71,6 +71,27 @@ export interface TrackRecord {
   updated_at: string;
 }
 
+export interface GradedPick {
+  season: number;
+  week: number;
+  player_name: string;
+  position: string;
+  team: string;
+  opponent: string;
+  market_label: string;
+  line: number | null;
+  side: Side;
+  confidence: Confidence;
+  actual_value: number;
+  hit: boolean;
+  margin: number | null;
+}
+
+export interface TrackRecordDetail {
+  updated_at: string;
+  picks: GradedPick[];
+}
+
 export type GameSegment = "full" | "h1" | "h2";
 export type GameMarket = "spread" | "total";
 export type GameSide = "a" | "b";

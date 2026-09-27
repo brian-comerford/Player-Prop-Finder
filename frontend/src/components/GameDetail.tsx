@@ -1,8 +1,10 @@
 import type { GameProp } from "../lib/types";
 import { formatBook, formatOdds, formatPct, formatPctWithOdds } from "../lib/format";
 import { sideBook, sideEdge, sideImpliedProb, sideLabel, sideModelProb, sidePrice } from "../lib/gameOdds";
+import { useLockBodyScroll } from "../lib/useLockBodyScroll";
 
 export default function GameDetail({ prop, onClose }: { prop: GameProp; onClose: () => void }) {
+  useLockBodyScroll();
   const side = prop.recommended_side;
 
   return (

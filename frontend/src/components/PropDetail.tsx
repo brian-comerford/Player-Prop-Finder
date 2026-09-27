@@ -12,6 +12,7 @@ import {
 import type { Prop } from "../lib/types";
 import { formatBook, formatLine, formatOdds, formatPct, formatPctWithOdds } from "../lib/format";
 import { isBinaryMarket, sideBook, sideEdge, sideImpliedProb, sideModelProb, sidePrice } from "../lib/odds";
+import { useLockBodyScroll } from "../lib/useLockBodyScroll";
 
 const BAR_UP = "#22c55e";
 const BAR_DOWN = "#94a3b8";
@@ -23,6 +24,7 @@ const AGREEMENT_LABEL: Record<"strong" | "moderate" | "split", string> = {
 };
 
 export default function PropDetail({ prop, onClose }: { prop: Prop; onClose: () => void }) {
+  useLockBodyScroll();
   const side = prop.recommended_side;
   const binary = isBinaryMarket(prop);
   const chartData = [...prop.recent_games]
