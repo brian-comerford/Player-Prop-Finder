@@ -644,6 +644,32 @@ def adjust_confidence(label, agreement):
     return CONFIDENCE_TIERS[max(0, min(idx, len(CONFIDENCE_TIERS) - 1))]
 
 
+# Below this many current-season games logged for a market, "0-for-N" is
+# just coin-flip noise (a single miss is a plausible outcome even for a
+# genuinely good bet) and shouldn't move confidence at all.
+COLD_STREAK_MIN_GAMES = 3
+
+
+def cap_confidence_if_cold_this_season(confidence, game_log, current_season, binary, side, line):
+    """A High label comes from the full, season-recency-weighted game log,
+    but the plain-English trend badges elsewhere (e.g. "Over 3.5
+    receptions in 7 of last 10 games") count games across seasons without
+    that weighting -- so a player whose role changed can carry a
+    misleadingly strong-looking trend into a season where the same bet
+    hasn't hit even once. Caps (never raises) confidence at Medium when
+    there are enough current-season games on record for this market and
+    none of them would have hit this side of the line.
+    """
+    if confidence != "High":
+        return confidence
+    season_games = [g for g in game_log if g["season"] == current_season]
+    if len(season_games) < COLD_STREAK_MIN_GAMES:
+        return confidence
+    if any(side_hits(binary, side, line, g["value"]) for g in season_games):
+        return confidence
+    return "Medium"
+
+
 def project_probabilities(mean, std, line, binary=False):
     if binary:
         p_yes = min(max(mean, TD_PROB_BOUNDS[0]), TD_PROB_BOUNDS[1])
@@ -807,6 +833,9 @@ def main():
         agreement = espn_agreement_level(projected_mean, espn_value, q["point"], recommended_side)
         confidence = adjust_confidence(
             confidence_label(base["games"], base["mean"], base["std"]), agreement
+        )
+        confidence = cap_confidence_if_cold_this_season(
+            confidence, base["game_log"], current_season, cfg.get("binary", False), recommended_side, q["point"]
         )
 
         props.append(

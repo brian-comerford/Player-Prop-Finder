@@ -141,7 +141,13 @@ export default function InfoPage({
             </ul>
             Where available, this also shifts by one tier based on whether ESPN's own,
             independently-computed weekly projection agrees or disagrees &mdash; see
-            &quot;ESPN 2nd opinion&quot; below.
+            &quot;ESPN 2nd opinion&quot; below. High is also capped down to Medium once there
+            are 3+ current-season games on record for that market and the player hasn't
+            actually hit this side of the line in any of them yet &mdash; the season-weighted
+            projection can still call it a good bet, but a trend badge like "8 of last 10
+            games" mixes in last season's games unweighted, so it can look stronger than the
+            player's real form this year. Below 3 current-season games, a single miss is too
+            close to a coin flip to hold against it.
           </Term>
         </dl>
       </Section>
