@@ -1,92 +1,42 @@
-"""Scratch probe: dump real Kalshi API shape for NFL passing-yards markets
-to see why fetch_kalshi_quotes is producing thresholds/lines that don't
-match what Kalshi's own UI shows. Deleted after use.
+"""Scratch probe #2: run the actual (now-fixed) fetch_kalshi_quotes()
+end-to-end against real data, to verify the career-market fix and comma-
+parsing fix actually clean up production output. Deleted after use.
 """
 import json
+import os
 
-import requests
-
-KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2"
-
-
-def fetch_open_events():
-    events = []
-    cursor = None
-    for _ in range(5):
-        params = {
-            "status": "open",
-            "with_nested_markets": "true",
-            "limit": 200,
-            "category": "Sports",
-        }
-        if cursor:
-            params["cursor"] = cursor
-        resp = requests.get(f"{KALSHI_BASE}/events", params=params, timeout=30)
-        resp.raise_for_status()
-        payload = resp.json()
-        page = payload.get("events", [])
-        events.extend(page)
-        cursor = payload.get("cursor")
-        if not cursor or not page:
-            break
-    return events
+import fetch_stats
+import pandas as pd
+from common import DATA_DIR
+from kalshi import fetch_kalshi_quotes
 
 
 def main():
-    events = fetch_open_events()
-    print(f"Fetched {len(events)} open Sports events")
+    fetch_stats.main()
 
-    mahomes_events = [
-        e for e in events if "mahomes" in json.dumps(e).lower() and "pass" in json.dumps(e).lower()
+    with open(os.path.join(DATA_DIR, "season_week.json")) as f:
+        season_week = json.load(f)
+    games = pd.read_csv(os.path.join(DATA_DIR, "games_recent.csv"), low_memory=False)
+    slate = games[
+        (games["season"] == season_week["upcoming_season"])
+        & (games["week"] == season_week["upcoming_week"])
     ]
-    print(f"Found {len(mahomes_events)} events mentioning mahomes+pass")
+    stats_df = pd.read_csv(os.path.join(DATA_DIR, "player_stats_recent.csv"), low_memory=False)
 
-    for e in mahomes_events[:3]:
-        print("=" * 80)
-        print("EVENT title:", e.get("title"))
-        print("EVENT ticker:", e.get("event_ticker"))
-        print("EVENT keys:", sorted(e.keys()))
-        markets = e.get("markets", [])
-        print(f"  {len(markets)} nested markets")
-        for m in markets[:15]:
-            print("  ---")
-            print("  market title:", m.get("title"))
-            print("  market subtitle:", m.get("subtitle"))
-            print("  market yes_sub_title:", m.get("yes_sub_title"))
-            print("  market ticker:", m.get("ticker"))
-            print("  market strike_type:", m.get("strike_type"))
-            print("  market floor_strike:", m.get("floor_strike"))
-            print("  market cap_strike:", m.get("cap_strike"))
-            print("  market last_price_dollars:", m.get("last_price_dollars"))
-            print("  market yes_bid_dollars:", m.get("yes_bid_dollars"))
-            print("  market yes_ask_dollars:", m.get("yes_ask_dollars"))
-            print("  market keys:", sorted(m.keys()))
-
-    # Also: broader scan for any passing-yard market regardless of player,
-    # to see the real threshold ladder / spacing Kalshi actually offers.
     print("=" * 80)
-    print("Broader scan: any 'passing yard' market title/subtitle text")
-    seen = 0
-    for e in events:
-        for m in e.get("markets", []):
-            title = m.get("title") or m.get("subtitle") or m.get("yes_sub_title") or ""
-            if "passing yard" in title.lower():
-                print(
-                    "  title=%r subtitle=%r yes_sub_title=%r floor_strike=%r cap_strike=%r"
-                    % (
-                        m.get("title"),
-                        m.get("subtitle"),
-                        m.get("yes_sub_title"),
-                        m.get("floor_strike"),
-                        m.get("cap_strike"),
-                    )
-                )
-                seen += 1
-                if seen >= 25:
-                    break
-        if seen >= 25:
-            break
-    print(f"Printed {seen} passing-yard markets")
+    print("Running fetch_kalshi_quotes with the fix applied...")
+    quotes = fetch_kalshi_quotes(slate, stats_df)
+    print(f"Total quotes returned: {len(quotes)}")
+    by_market = {}
+    for q in quotes:
+        by_market.setdefault(q["market"], []).append(q)
+    for mkey, qs in by_market.items():
+        print(f"  {mkey}: {len(qs)} quotes")
+    print()
+    print("First 40 quotes:")
+    for q in quotes[:40]:
+        print(f"  {q['player_name']:25s} {q['market']:25s} point={q['point']} "
+              f"price_over={q['price_over']} price_under={q['price_under']}")
 
 
 if __name__ == "__main__":

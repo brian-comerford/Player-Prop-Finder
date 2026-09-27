@@ -36,7 +36,7 @@ STAT_KEYWORDS = [
     ("touchdown", "player_anytime_td"),
 ]
 
-THRESHOLD_RE = re.compile(r"(\d+(?:\.\d+)?)")
+THRESHOLD_RE = re.compile(r"([\d,]+(?:\.\d+)?)")
 # Used to decide whether a *market* (not just its parent event) is even a
 # candidate stat-threshold prop worth trying to match a player against --
 # deliberately the same phrases _match_market looks for, since a market
@@ -46,6 +46,31 @@ THRESHOLD_RE = re.compile(r"(\d+(?:\.\d+)?)")
 # coincidental substring but aren't player props, and were being pulled in
 # as false positives before this was tightened.
 STAT_PHRASES = tuple(phrase for phrase, _ in STAT_KEYWORDS)
+
+# Kalshi also lists career/season-cumulative stat markets (e.g. "Patrick
+# Mahomes: 89,215+ Passing Yards" toward his career total, ticker prefix
+# KXNFLCAREER...) alongside whatever single-game weekly props it offers.
+# These share the exact same "passing yard"/"rushing yard"/etc. wording
+# _match_market looks for, but aren't remotely the same product as a
+# single game's stat line -- confirmed live, the only "passing yard"
+# markets Kalshi actually had open were these career-milestone contracts,
+# with no weekly ones at all. Their parent *event* title/ticker says
+# "career" even though the individual market title doesn't, so this has
+# to be filtered at the event level before ever looking at its markets.
+CAREER_MARKET_MARKERS = ("career",)
+
+# Belt-and-suspenders against the same mistake in a different shape (e.g.
+# a season-long cumulative market that doesn't happen to say "career"):
+# real single-game NFL production has a hard ceiling well under these
+# values for every stat tracked here, so a parsed threshold above it is
+# rejected outright regardless of wording.
+MAX_PLAUSIBLE_SINGLE_GAME = {
+    "player_pass_yds": 550,
+    "player_pass_tds": 8,
+    "player_rush_yds": 350,
+    "player_reception_yds": 350,
+    "player_receptions": 20,
+}
 
 
 def fetch_kalshi_quotes(slate, stats_df):
@@ -63,7 +88,12 @@ def fetch_kalshi_quotes(slate, stats_df):
 
     candidate_titles = []
     quotes = []
+    skipped_career_events = 0
     for event in events:
+        event_text = f"{event.get('title', '')} {event.get('event_ticker', '')}".lower()
+        if any(marker in event_text for marker in CAREER_MARKET_MARKERS):
+            skipped_career_events += 1
+            continue
         for market in event.get("markets", []):
             title = market.get("title") or market.get("subtitle") or market.get("yes_sub_title") or ""
             lower_title = title.lower()
@@ -99,6 +129,7 @@ def fetch_kalshi_quotes(slate, stats_df):
                 }
             )
 
+    print(f"Kalshi: skipped {skipped_career_events} career/cumulative events")
     print(f"Kalshi: {len(candidate_titles)} markets mention a tracked stat; sample titles: {candidate_titles[:10]}")
     print(f"Kalshi: matched {len(quotes)} player-prop quotes")
     return quotes
@@ -165,8 +196,13 @@ def _match_market(title, player_lookup):
             continue
         # Kalshi's "X+" threshold markets pay out on X or more; our
         # over/under model uses a strict ">", so shift down half a unit to
-        # keep "6+" behaving like "over 5.5".
-        threshold = float(threshold_match.group(1)) - 0.5
+        # keep "6+" behaving like "over 5.5". Strip thousands-separator
+        # commas first (e.g. "1,234") -- \d+ alone stops at the comma and
+        # would otherwise silently truncate to "1".
+        threshold = float(threshold_match.group(1).replace(",", "")) - 0.5
+        max_plausible = MAX_PLAUSIBLE_SINGLE_GAME.get(market_key)
+        if max_plausible is not None and threshold > max_plausible:
+            return None
         return player_row, market_key, threshold
 
     return None
