@@ -268,21 +268,27 @@ export default function InfoPage({
 
       <Section title="Track record">
         <p>
-          The banner at the top shows how the model's own picks have actually done: for every
-          player and stat, the recommended side is saved right before that specific game
-          kicks off (each team's picks freeze independently, at its own kickoff, not the whole
-          week at once), then graded against the real final result once the game is over
-          &mdash; an Over on 65.5 rushing yards is a hit if the player actually ran for more
-          than that, regardless of what the model would say if you re-ran it today with
-          hindsight. Since an NFL week's games finish on staggered days, this updates
-          throughout the week as each game wraps &mdash; Thursday night's picks can already be
-          graded while Sunday's games are still being played. That hit rate, and the breakdown
-          by Confidence tier, is a running total across every graded pick so far, not just a
-          recent hot or cold streak.
+          The <strong>Track record</strong> button at the bottom of the page shows how the
+          model's own picks have actually done: for every player and stat, the recommended
+          side is saved right before that specific game kicks off (each team's picks freeze
+          independently, at its own kickoff, not the whole week at once), then graded against
+          the real final result once the game is over &mdash; an Over on 65.5 rushing yards is
+          a hit if the player actually ran for more than that, regardless of what the model
+          would say if you re-ran it today with hindsight. Since an NFL week's games finish on
+          staggered days, this updates throughout the week as each game wraps &mdash; Thursday
+          night's picks can already be graded while Sunday's games are still being played.
+          That hit rate, and the breakdown by Confidence tier, is a running total across every
+          graded pick so far, not just a recent hot or cold streak.
+        </p>
+        <p>
+          Opening the panel also lists every graded pick individually, so you can see exactly
+          which ones hit and, for the ones that missed, how close they came &mdash; e.g. a pick
+          needing Over 65.5 that the player finished at 63 missed by 2.5, shown right next to
+          the miss.
         </p>
         <p>
           Early on, this number will bounce around a lot &mdash; a few dozen picks from one or
-          two weeks is a small sample, and the banner says so directly until there's enough
+          two weeks is a small sample, and the panel says so directly until there's enough
           history to mean much. If the confidence tiers are doing their job, High should end
           up landing ahead of Medium and Low over time, though with this few games played
           there's no way to promise that yet.

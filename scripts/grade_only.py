@@ -17,7 +17,7 @@ import os
 
 import fetch_stats
 import pandas as pd
-from analyze import build_track_record, grade_past_weeks
+from analyze import build_track_record, build_track_record_detail, grade_past_weeks
 from common import DATA_DIR
 
 
@@ -37,6 +37,14 @@ def main():
     with open(os.path.join(DATA_DIR, "track_record.json"), "w") as f:
         json.dump(track_record, f)
     print(f"Wrote track record ({track_record['weeks_graded']} weeks graded) -> data/track_record.json")
+
+    track_record_detail = build_track_record_detail()
+    with open(os.path.join(DATA_DIR, "track_record_detail.json"), "w") as f:
+        json.dump(track_record_detail, f)
+    print(
+        f"Wrote track record detail ({len(track_record_detail['picks'])} graded picks) "
+        "-> data/track_record_detail.json"
+    )
 
 
 if __name__ == "__main__":

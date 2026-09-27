@@ -8,6 +8,7 @@ import GameFilters, { DEFAULT_GAME_FILTERS, type GameFilterState } from "./compo
 import GamesTable from "./components/GamesTable";
 import GameDetail from "./components/GameDetail";
 import InfoPage from "./components/InfoPage";
+import TrackRecordSection from "./components/TrackRecordSection";
 import { fetchGameMeta, fetchGameProps, fetchMeta, fetchProps, fetchTrackRecord } from "./lib/data";
 import type { GameMeta, GameProp, Meta, Prop, TrackRecord } from "./lib/types";
 import { sideEdge } from "./lib/odds";
@@ -260,7 +261,7 @@ export default function App() {
 
       {props && meta && (
         <div className="space-y-5">
-          <Banner meta={meta} trackRecord={trackRecord} />
+          <Banner meta={meta} />
 
           <div className="flex gap-1 border-b border-slate-200 dark:border-slate-800">
             {(["props", "games", "info"] as const).map((t) => (
@@ -356,6 +357,8 @@ export default function App() {
           )}
 
           {tab === "info" && <InfoPage theme={theme} onThemeChange={setTheme} />}
+
+          <TrackRecordSection trackRecord={trackRecord} />
         </div>
       )}
 

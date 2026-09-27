@@ -1,4 +1,4 @@
-import type { GameMeta, GameProp, Meta, Prop, TrackRecord } from "./types";
+import type { GameMeta, GameProp, Meta, Prop, TrackRecord, TrackRecordDetail } from "./types";
 
 const base = import.meta.env.BASE_URL;
 
@@ -20,6 +20,10 @@ export function fetchMeta(): Promise<Meta> {
 
 export function fetchTrackRecord(): Promise<TrackRecord> {
   return fetchJson<TrackRecord>("track_record.json");
+}
+
+export function fetchTrackRecordDetail(): Promise<TrackRecordDetail> {
+  return fetchJson<TrackRecordDetail>("track_record_detail.json");
 }
 
 export function fetchGameProps(): Promise<GameProp[]> {
