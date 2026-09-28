@@ -54,7 +54,10 @@ def games_missed(last_active_season, last_active_week, upcoming_season, upcoming
 USAGE_MIN = {
     "player_pass_yds": ("attempts", 5),
     "player_pass_tds": ("attempts", 5),
+    "player_pass_attempts": ("attempts", 5),
+    "player_pass_interceptions": ("attempts", 5),
     "player_rush_yds": ("carries", 2),
+    "player_rush_attempts": ("carries", 2),
     "player_receptions": ("targets", 1),
     "player_reception_yds": ("targets", 1),
     "player_rush_reception_yds": (None, 0),
