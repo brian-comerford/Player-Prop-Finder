@@ -109,20 +109,29 @@ function TrackRecordPanel({
 
   const [minEdge, setMinEdge] = useState(0);
   const [confidence, setConfidence] = useState<Confidence | "All">("All");
+  const [market, setMarket] = useState("All");
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
+
+  const marketOptions = useMemo(() => {
+    if (!detail) return [];
+    return Array.from(new Set(detail.picks.map((p) => p.market_label))).sort();
+  }, [detail]);
 
   const filteredPicks = useMemo(() => {
     if (!detail) return [];
     return detail.picks.filter(
-      // minEdge at its floor (0%) means "no edge filter" -- some graded picks
-      // carry a negative edge (the model still grades whichever side it
-      // liked better even when neither side looked profitable), and those
-      // should still count by default so the unfiltered totals here match
-      // the overall summary above, not silently drop picks before the user
-      // has touched the slider.
-      (p) => (minEdge <= 0 || p.edge >= minEdge) && (confidence === "All" || p.confidence === confidence)
+      (p) =>
+        // minEdge at its floor (0%) means "no edge filter" -- some graded
+        // picks carry a negative edge (the model still grades whichever
+        // side it liked better even when neither side looked profitable),
+        // and those should still count by default so the unfiltered
+        // totals here match the overall summary above, not silently drop
+        // picks before the user has touched the slider.
+        (minEdge <= 0 || p.edge >= minEdge) &&
+        (confidence === "All" || p.confidence === confidence) &&
+        (market === "All" || p.market_label === market)
     );
-  }, [detail, minEdge, confidence]);
+  }, [detail, minEdge, confidence, market]);
 
   const filteredSummary = useMemo(() => {
     const n = filteredPicks.length;
@@ -131,7 +140,7 @@ function TrackRecordPanel({
   }, [filteredPicks]);
 
   const weekGroups = useMemo(() => groupByWeek(filteredPicks), [filteredPicks]);
-  const filtersActive = minEdge > 0 || confidence !== "All";
+  const filtersActive = minEdge > 0 || confidence !== "All" || market !== "All";
 
   function toggleWeek(key: string) {
     setExpandedWeeks((prev) => {
@@ -189,7 +198,7 @@ function TrackRecordPanel({
 
         {detail && (
           <>
-            <div className="mb-3 grid grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2">
+            <div className="mb-3 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-3">
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-slate-500 dark:text-slate-400">Min. edge: {(minEdge * 100).toFixed(0)}%</span>
                 <input
@@ -212,6 +221,21 @@ function TrackRecordPanel({
                   {CONFIDENCE_OPTIONS.map((c) => (
                     <option key={c} value={c}>
                       {c}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-slate-500 dark:text-slate-400">Bet type</span>
+                <select
+                  value={market}
+                  onChange={(e) => setMarket(e.target.value)}
+                  className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+                >
+                  <option value="All">All</option>
+                  {marketOptions.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
                     </option>
                   ))}
                 </select>
