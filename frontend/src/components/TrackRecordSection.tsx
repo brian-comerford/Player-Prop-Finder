@@ -27,6 +27,14 @@ function actualLabel(p: GradedPick): string {
   return p.actual_value.toString();
 }
 
+function pillClass(selected: boolean): string {
+  return `rounded-full border px-2 py-0.5 text-xs transition-colors ${
+    selected
+      ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
+      : "border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+  }`;
+}
+
 // detail.picks arrives sorted most-recent-week-first; grouping preserves
 // that order without re-sorting.
 function groupByWeek(picks: GradedPick[]): WeekGroup[] {
@@ -109,7 +117,7 @@ function TrackRecordPanel({
 
   const [minEdge, setMinEdge] = useState(0);
   const [confidence, setConfidence] = useState<Confidence | "All">("All");
-  const [market, setMarket] = useState("All");
+  const [markets, setMarkets] = useState<Set<string>>(new Set());
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
 
   const marketOptions = useMemo(() => {
@@ -129,9 +137,12 @@ function TrackRecordPanel({
         // picks before the user has touched the slider.
         (minEdge <= 0 || p.edge >= minEdge) &&
         (confidence === "All" || p.confidence === confidence) &&
-        (market === "All" || p.market_label === market)
+        // No bet types selected means "All" -- same as before this was
+        // multi-select, just expressed as an empty set instead of a
+        // sentinel string.
+        (markets.size === 0 || markets.has(p.market_label))
     );
-  }, [detail, minEdge, confidence, market]);
+  }, [detail, minEdge, confidence, markets]);
 
   const filteredSummary = useMemo(() => {
     const n = filteredPicks.length;
@@ -140,13 +151,22 @@ function TrackRecordPanel({
   }, [filteredPicks]);
 
   const weekGroups = useMemo(() => groupByWeek(filteredPicks), [filteredPicks]);
-  const filtersActive = minEdge > 0 || confidence !== "All" || market !== "All";
+  const filtersActive = minEdge > 0 || confidence !== "All" || markets.size > 0;
 
   function toggleWeek(key: string) {
     setExpandedWeeks((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleMarket(m: string) {
+    setMarkets((prev) => {
+      const next = new Set(prev);
+      if (next.has(m)) next.delete(m);
+      else next.add(m);
       return next;
     });
   }
@@ -198,48 +218,57 @@ function TrackRecordPanel({
 
         {detail && (
           <>
-            <div className="mb-3 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-3">
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-slate-500 dark:text-slate-400">Min. edge: {(minEdge * 100).toFixed(0)}%</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={0.25}
-                  step={0.01}
-                  value={minEdge}
-                  onChange={(e) => setMinEdge(Number(e.target.value))}
-                  className="mt-2"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-slate-500 dark:text-slate-400">Confidence</span>
-                <select
-                  value={confidence}
-                  onChange={(e) => setConfidence(e.target.value as Confidence | "All")}
-                  className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
-                >
-                  {CONFIDENCE_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-slate-500 dark:text-slate-400">Bet type</span>
-                <select
-                  value={market}
-                  onChange={(e) => setMarket(e.target.value)}
-                  className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
-                >
-                  <option value="All">All</option>
+            <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="text-slate-500 dark:text-slate-400">
+                    Min. edge: {(minEdge * 100).toFixed(0)}%
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={0.25}
+                    step={0.01}
+                    value={minEdge}
+                    onChange={(e) => setMinEdge(Number(e.target.value))}
+                    className="mt-2"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="text-slate-500 dark:text-slate-400">Confidence</span>
+                  <select
+                    value={confidence}
+                    onChange={(e) => setConfidence(e.target.value as Confidence | "All")}
+                    className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  >
+                    {CONFIDENCE_OPTIONS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-3 flex flex-col gap-1.5 text-sm">
+                <span className="text-slate-500 dark:text-slate-400">
+                  Bet type{markets.size > 0 && ` (${markets.size} selected)`}
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setMarkets(new Set())}
+                    className={pillClass(markets.size === 0)}
+                  >
+                    All
+                  </button>
                   {marketOptions.map((m) => (
-                    <option key={m} value={m}>
+                    <button key={m} type="button" onClick={() => toggleMarket(m)} className={pillClass(markets.has(m))}>
                       {m}
-                    </option>
+                    </button>
                   ))}
-                </select>
-              </label>
+                </div>
+              </div>
             </div>
 
             {filtersActive && (
