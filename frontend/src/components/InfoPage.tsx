@@ -294,6 +294,9 @@ export default function InfoPage({
           by 2.5). A Min. edge slider, Confidence filter, and Bet type filter above the list
           narrow it down to a specific slice, e.g. only High-confidence Receiving Yards picks
           above 15% edge, with the hit rate for just that filtered set shown above the results.
+          Bet type supports picking several markets at once (e.g. Receiving Yards and Rush +
+          Rec Yards together) by tapping each one &mdash; tap "All" to clear back to every
+          market.
         </p>
         <p>
           Early on, this number will bounce around a lot &mdash; a few dozen picks from one or
