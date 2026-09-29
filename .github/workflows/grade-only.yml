@@ -1,14 +1,34 @@
 name: Refresh track record only (no odds API)
 
-# Manually triggered, e.g. right after a batch of games finishes on a
-# Sunday, to update graded results and the track record without spending
-# Odds API quota. Re-fetches only the free nflverse/ESPN data (player
-# stats, schedule/final scores) via scripts/grade_only.py, then rebuilds
-# and redeploys the site using the current live props/game-props data
-# unchanged (fetched from the site itself, since that data isn't
-# committed to the repo).
+# Runs on a schedule after every standard NFL time slot finishes (see
+# below), plus can be triggered manually any time, to update graded
+# results and the track record without spending Odds API quota.
+# Re-fetches only the free nflverse/ESPN data (player stats, schedule/
+# final scores) via scripts/grade_only.py, then rebuilds and redeploys
+# the site using the current live props/game-props data unchanged
+# (fetched from the site itself, since that data isn't committed to the
+# repo).
 on:
   workflow_dispatch: {}
+  schedule:
+    # All times are UTC -- GitHub Actions' schedule trigger has no
+    # timezone support (CRON_TZ isn't honored), so these are converted
+    # from US Eastern Time using the EST (UTC-5) offset. During Eastern
+    # Daylight Time (mid-March-early November, which covers most of the
+    # season's September-early-November games), that makes these fire
+    # about an hour *later* than the ET time noted below, never earlier
+    # -- more buffer after a game ends, not less.
+    #
+    # Sunday: 6pm ET (an hour after the early 1pm games), 9pm ET (after
+    # the late-afternoon games), and 11:59pm ET (after Sunday Night
+    # Football).
+    - cron: "0 23 * * SUN" # Sunday 6:00pm ET
+    - cron: "0 2 * * MON" # Sunday 9:00pm ET
+    - cron: "59 4 * * MON" # Sunday 11:59pm ET
+    # Thursday Night Football.
+    - cron: "59 4 * * FRI" # Thursday 11:59pm ET
+    # Monday Night Football.
+    - cron: "59 4 * * TUE" # Monday 11:59pm ET
 
 permissions:
   contents: write
