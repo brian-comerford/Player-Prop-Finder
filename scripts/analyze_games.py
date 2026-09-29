@@ -27,7 +27,7 @@ from collections import Counter
 import pandas as pd
 from scipy.stats import norm
 
-from analyze import classify_time_slot
+from analyze import HISTORY_DIR, classify_time_slot
 from common import (
     DATA_DIR,
     RECENCY_DECAY,
@@ -304,6 +304,246 @@ def build_matchup_props(slate, team_rates, league_avg, quotes_by_key):
     return props
 
 
+def snapshot_current_week_game_picks(props, season, week):
+    """Writes data/history/game_picks_{season}_wk{week}.json -- the game-
+    level (spread/total) analog of analyze.py's snapshot_current_week_picks,
+    same merge behavior: a matchup with no props in this run (its game has
+    already kicked off) keeps whatever was last snapshotted for it, and
+    only matchups still on the board get refreshed.
+    """
+    os.makedirs(HISTORY_DIR, exist_ok=True)
+    path = os.path.join(HISTORY_DIR, f"game_picks_{season}_wk{week}.json")
+
+    fresh_matchups = {(p["home_team"], p["away_team"]) for p in props}
+    carried_over = []
+    if os.path.exists(path):
+        with open(path) as f:
+            previous = json.load(f)
+        carried_over = [
+            pick
+            for pick in previous.get("picks", [])
+            if (pick["home_team"], pick["away_team"]) not in fresh_matchups
+        ]
+
+    fresh_picks = [
+        {
+            "matchup": p["matchup"],
+            "home_team": p["home_team"],
+            "away_team": p["away_team"],
+            "segment": p["segment"],
+            "segment_label": p["segment_label"],
+            "market": p["market"],
+            "market_label": p["market_label"],
+            "line": p["line"],
+            "side": p["recommended_side"],
+            "side_label": p["side_a_label"] if p["recommended_side"] == "a" else p["side_b_label"],
+            "model_prob": p["model_prob_a"] if p["recommended_side"] == "a" else p["model_prob_b"],
+            "edge": p["recommended_edge"],
+            "confidence": p["confidence"],
+        }
+        for p in props
+    ]
+    picks = carried_over + fresh_picks
+    with open(path, "w") as f:
+        json.dump({"season": season, "week": week, "generated_at": utcnow_iso(), "picks": picks}, f)
+
+
+def completed_matchups(games_df, season, week):
+    """{(home_team, away_team): (home_score, away_score)} for every game in
+    (season, week) that already has a final score."""
+    if games_df.empty:
+        return {}
+    rows = games_df[
+        (games_df["season"] == season)
+        & (games_df["week"] == week)
+        & games_df["home_score"].notna()
+        & (games_df["home_score"] != "")
+    ]
+    return {(g.home_team, g.away_team): (float(g.home_score), float(g.away_score)) for g in rows.itertuples()}
+
+
+def actual_segment_points(team_stats_df, season, week, team, segment):
+    """Approximates a team's actual points scored in `segment` for an
+    already-played game, from real per-half scoring-play counts
+    (team_game_stats.csv) using the same TD_POINT_VALUE/FG_POINT_VALUE the
+    model's own projections use. Only needed for h1/h2 -- nflverse's
+    schedule file has no actual half-by-half score to grade a half-game
+    bet against, unlike "full", which uses the real final score from
+    games_recent.csv instead (see grade_past_game_weeks). This is
+    therefore an approximation (it won't count a safety or a 2-point
+    return, for instance), but it's the same approximation the model
+    itself is judged by, so it stays an apples-to-apples comparison.
+    """
+    rows = team_stats_df[
+        (team_stats_df["season"] == season) & (team_stats_df["week"] == week) & (team_stats_df["team"] == team)
+    ]
+    if rows.empty:
+        return None
+    row = rows.iloc[0]
+    return float(
+        row[f"rushing_tds_{segment}"] * TD_POINT_VALUE
+        + row[f"passing_tds_{segment}"] * TD_POINT_VALUE
+        + row[f"field_goals_{segment}"] * FG_POINT_VALUE
+    )
+
+
+def graded_game_pick(pick, actual_home, actual_away):
+    """(hit, margin) for one snapshotted pick given the actual points each
+    side scored in its segment -- margin is signed so it's positive
+    whenever the pick hit (by how much) and negative when it missed (by
+    how much), mirroring analyze.py's player-prop margin convention.
+    Returns (None, None) if the pick has no line to grade against.
+    """
+    line = pick["line"]
+    if line is None:
+        return None, None
+    if pick["market"] == "spread":
+        raw = (actual_home - actual_away) + line  # positive => home covered by this many points
+    else:
+        raw = (actual_home + actual_away) - line  # positive => total went Over by this many points
+    margin = raw if pick["side"] == "a" else -raw
+    return margin > 0, round(margin, 1)
+
+
+def grade_past_game_weeks(games_df, team_stats_df, current_season, current_week):
+    """Grades every snapshotted game pick whose own matchup has already
+    finished -- the game-level analog of analyze.py's grade_past_weeks.
+    Recomputed from scratch each run for any week not yet fully graded, so
+    newly finished games (and newly available team-game-stats rows) are
+    picked up without needing to merge with a prior partial result.
+    """
+    if current_week is None or not os.path.isdir(HISTORY_DIR):
+        return
+    for fname in sorted(os.listdir(HISTORY_DIR)):
+        if not fname.startswith("game_picks_") or not fname.endswith(".json"):
+            continue
+        with open(os.path.join(HISTORY_DIR, fname)) as f:
+            snapshot = json.load(f)
+        season, week = snapshot["season"], snapshot["week"]
+        if (season, week) > (current_season, current_week):
+            continue
+
+        results_path = os.path.join(HISTORY_DIR, fname.replace("game_picks_", "game_results_", 1))
+        if os.path.exists(results_path):
+            with open(results_path) as f:
+                if json.load(f).get("fully_graded"):
+                    continue
+
+        finished = completed_matchups(games_df, season, week)
+        graded = []
+        pending = 0
+        for pick in snapshot["picks"]:
+            key = (pick["home_team"], pick["away_team"])
+            if key not in finished:
+                pending += 1
+                continue
+            actual_home, actual_away = finished[key]
+            if pick["segment"] != "full":
+                seg_home = actual_segment_points(team_stats_df, season, week, pick["home_team"], pick["segment"])
+                seg_away = actual_segment_points(team_stats_df, season, week, pick["away_team"], pick["segment"])
+                if seg_home is None or seg_away is None:
+                    continue
+                actual_home, actual_away = seg_home, seg_away
+
+            hit, margin = graded_game_pick(pick, actual_home, actual_away)
+            if hit is None:
+                continue
+            graded.append(
+                {
+                    **pick,
+                    "actual_home_points": round(actual_home, 1),
+                    "actual_away_points": round(actual_away, 1),
+                    "hit": hit,
+                    "margin": margin,
+                }
+            )
+
+        fully_graded = pending == 0
+        with open(results_path, "w") as f:
+            json.dump(
+                {
+                    "season": season,
+                    "week": week,
+                    "graded_at": utcnow_iso(),
+                    "fully_graded": fully_graded,
+                    "picks": graded,
+                },
+                f,
+            )
+        status = "fully graded" if fully_graded else f"{pending} picks still pending (games not final yet)"
+        print(f"  Graded game props {season} wk{week}: {len(graded)}/{len(snapshot['picks'])} picks ({status})")
+
+
+def build_game_track_record():
+    """Games analog of analyze.py's build_track_record -- rolled up from
+    data/history/game_results_*.json instead of results_*.json."""
+    def summarize(picks):
+        if not picks:
+            return None
+        hits = sum(1 for p in picks if p["hit"])
+        return {"picks": len(picks), "hits": hits, "hit_rate": round(hits / len(picks), 3)}
+
+    all_picks = []
+    weeks_graded = 0
+    week_in_progress = False
+    if os.path.isdir(HISTORY_DIR):
+        for fname in sorted(os.listdir(HISTORY_DIR)):
+            if not fname.startswith("game_results_") or not fname.endswith(".json"):
+                continue
+            with open(os.path.join(HISTORY_DIR, fname)) as f:
+                data = json.load(f)
+            all_picks.extend(data["picks"])
+            if data.get("fully_graded"):
+                weeks_graded += 1
+            elif data["picks"]:
+                week_in_progress = True
+
+    by_confidence = {}
+    for tier in ("High", "Medium", "Low"):
+        summary = summarize([p for p in all_picks if p["confidence"] == tier])
+        if summary:
+            by_confidence[tier] = summary
+
+    return {
+        "overall": summarize(all_picks),
+        "by_confidence": by_confidence,
+        "weeks_graded": weeks_graded,
+        "week_in_progress": week_in_progress,
+        "updated_at": utcnow_iso(),
+    }
+
+
+def build_game_track_record_detail():
+    """Games analog of analyze.py's build_track_record_detail."""
+    picks = []
+    if os.path.isdir(HISTORY_DIR):
+        for fname in sorted(os.listdir(HISTORY_DIR)):
+            if not fname.startswith("game_results_") or not fname.endswith(".json"):
+                continue
+            with open(os.path.join(HISTORY_DIR, fname)) as f:
+                data = json.load(f)
+            for p in data["picks"]:
+                picks.append(
+                    {
+                        "season": data["season"],
+                        "week": data["week"],
+                        "matchup": p["matchup"],
+                        "segment_label": p["segment_label"],
+                        "market_label": p["market_label"],
+                        "side_label": p["side_label"],
+                        "line": p["line"],
+                        "confidence": p["confidence"],
+                        "edge": p["edge"],
+                        "actual_home_points": p["actual_home_points"],
+                        "actual_away_points": p["actual_away_points"],
+                        "hit": p["hit"],
+                        "margin": p["margin"],
+                    }
+                )
+    picks.sort(key=lambda p: (p["season"], p["week"]), reverse=True)
+    return {"updated_at": utcnow_iso(), "picks": picks}
+
+
 def main():
     with open(os.path.join(DATA_DIR, "season_week.json")) as f:
         season_week = json.load(f)
@@ -322,9 +562,11 @@ def main():
         with open(odds_meta_path) as f:
             odds_meta = json.load(f)
 
+    games_path = os.path.join(DATA_DIR, "games_recent.csv")
+    games = pd.read_csv(games_path, low_memory=False) if os.path.exists(games_path) else pd.DataFrame()
+
     props = []
-    if upcoming_season is not None and not team_stats.empty:
-        games = pd.read_csv(os.path.join(DATA_DIR, "games_recent.csv"), low_memory=False)
+    if upcoming_season is not None and not team_stats.empty and not games.empty:
         slate = games[
             (games["season"] == upcoming_season) & (games["week"] == upcoming_week)
         ].copy()
@@ -356,6 +598,27 @@ def main():
 
     by_segment = Counter(p["segment"] for p in props)
     print(f"Wrote {len(props)} game props -> data/game_props.json ({dict(by_segment)})")
+
+    if upcoming_season is not None and upcoming_week is not None:
+        snapshot_current_week_game_picks(props, upcoming_season, upcoming_week)
+        print(f"Snapshotted {len(props)} game picks for {upcoming_season} wk{upcoming_week} -> data/history/")
+    grade_past_game_weeks(games, team_stats, upcoming_season, upcoming_week)
+
+    game_track_record = build_game_track_record()
+    with open(os.path.join(DATA_DIR, "game_track_record.json"), "w") as f:
+        json.dump(game_track_record, f)
+    print(
+        f"Wrote game track record ({game_track_record['weeks_graded']} weeks graded) "
+        "-> data/game_track_record.json"
+    )
+
+    game_track_record_detail = build_game_track_record_detail()
+    with open(os.path.join(DATA_DIR, "game_track_record_detail.json"), "w") as f:
+        json.dump(game_track_record_detail, f)
+    print(
+        f"Wrote game track record detail ({len(game_track_record_detail['picks'])} graded picks) "
+        "-> data/game_track_record_detail.json"
+    )
 
 
 if __name__ == "__main__":

@@ -1,4 +1,12 @@
-import type { GameMeta, GameProp, Meta, Prop, TrackRecord, TrackRecordDetail } from "./types";
+import type {
+  GameMeta,
+  GameProp,
+  GameTrackRecordDetail,
+  Meta,
+  Prop,
+  TrackRecord,
+  TrackRecordDetail,
+} from "./types";
 
 const base = import.meta.env.BASE_URL;
 
@@ -26,10 +34,34 @@ export function fetchTrackRecordDetail(): Promise<TrackRecordDetail> {
   return fetchJson<TrackRecordDetail>("track_record_detail.json");
 }
 
+export function fetchAnytimeTdProps(): Promise<Prop[]> {
+  return fetchJson<Prop[]>("anytime_td_props.json");
+}
+
+export function fetchAnytimeTdMeta(): Promise<Meta> {
+  return fetchJson<Meta>("anytime_td_meta.json");
+}
+
+export function fetchAnytimeTdTrackRecord(): Promise<TrackRecord> {
+  return fetchJson<TrackRecord>("anytime_td_track_record.json");
+}
+
+export function fetchAnytimeTdTrackRecordDetail(): Promise<TrackRecordDetail> {
+  return fetchJson<TrackRecordDetail>("anytime_td_track_record_detail.json");
+}
+
 export function fetchGameProps(): Promise<GameProp[]> {
   return fetchJson<GameProp[]>("game_props.json");
 }
 
 export function fetchGameMeta(): Promise<GameMeta> {
   return fetchJson<GameMeta>("game_meta.json");
+}
+
+export function fetchGameTrackRecord(): Promise<TrackRecord> {
+  return fetchJson<TrackRecord>("game_track_record.json");
+}
+
+export function fetchGameTrackRecordDetail(): Promise<GameTrackRecordDetail> {
+  return fetchJson<GameTrackRecordDetail>("game_track_record_detail.json");
 }

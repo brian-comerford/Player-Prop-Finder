@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { Confidence, GradedPick, TrackRecord, TrackRecordDetail } from "../lib/types";
+import type { Confidence, GameTrackRecordDetail, GradedGamePick, TrackRecord } from "../lib/types";
 import { useLockBodyScroll } from "../lib/useLockBodyScroll";
 
 const CONFIDENCE_TIERS: Confidence[] = ["High", "Medium", "Low"];
@@ -8,7 +8,7 @@ const CONFIDENCE_OPTIONS: Array<Confidence | "All"> = ["All", "High", "Medium", 
 interface WeekGroup {
   season: number;
   week: number;
-  picks: GradedPick[];
+  picks: GradedGamePick[];
   hits: number;
 }
 
@@ -16,14 +16,8 @@ function pct(hitRate: number): string {
   return `${Math.round(hitRate * 100)}%`;
 }
 
-function pickLabel(p: GradedPick): string {
-  if (p.line === null) return p.side === "over" ? "Anytime TD" : "No TD";
-  return `${p.side === "over" ? "Over" : "Under"} ${p.line}`;
-}
-
-function actualLabel(p: GradedPick): string {
-  if (p.line === null) return p.actual_value > 0 ? "TD" : "No TD";
-  return p.actual_value.toString();
+function actualLabel(p: GradedGamePick): string {
+  return `${p.actual_away_points}-${p.actual_home_points}`;
 }
 
 function pillClass(selected: boolean): string {
@@ -34,9 +28,7 @@ function pillClass(selected: boolean): string {
   }`;
 }
 
-// detail.picks arrives sorted most-recent-week-first; grouping preserves
-// that order without re-sorting.
-function groupByWeek(picks: GradedPick[]): WeekGroup[] {
+function groupByWeek(picks: GradedGamePick[]): WeekGroup[] {
   const groups: WeekGroup[] = [];
   const byKey = new Map<string, WeekGroup>();
   for (const p of picks) {
@@ -53,17 +45,15 @@ function groupByWeek(picks: GradedPick[]): WeekGroup[] {
   return groups;
 }
 
-export default function TrackRecordSection({
+export default function GameTrackRecordSection({
   trackRecord,
   fetchDetail,
-  label = "Track record",
 }: {
   trackRecord: TrackRecord | null;
-  fetchDetail: () => Promise<TrackRecordDetail>;
-  label?: string;
+  fetchDetail: () => Promise<GameTrackRecordDetail>;
 }) {
   const [open, setOpen] = useState(false);
-  const [detail, setDetail] = useState<TrackRecordDetail | null>(null);
+  const [detail, setDetail] = useState<GameTrackRecordDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,16 +80,15 @@ export default function TrackRecordSection({
         onClick={handleOpen}
         className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
       >
-        {label}: {pct(overall.hit_rate)} ({overall.hits}/{overall.picks})
+        Track record: {pct(overall.hit_rate)} ({overall.hits}/{overall.picks})
       </button>
 
       {open && (
-        <TrackRecordPanel
+        <GameTrackRecordPanel
           trackRecord={trackRecord}
           detail={detail}
           loading={loading}
           error={error}
-          label={label}
           onClose={() => setOpen(false)}
         />
       )}
@@ -107,19 +96,17 @@ export default function TrackRecordSection({
   );
 }
 
-function TrackRecordPanel({
+function GameTrackRecordPanel({
   trackRecord,
   detail,
   loading,
   error,
-  label,
   onClose,
 }: {
   trackRecord: TrackRecord;
-  detail: TrackRecordDetail | null;
+  detail: GameTrackRecordDetail | null;
   loading: boolean;
   error: string | null;
-  label: string;
   onClose: () => void;
 }) {
   useLockBodyScroll();
@@ -139,17 +126,8 @@ function TrackRecordPanel({
     if (!detail) return [];
     return detail.picks.filter(
       (p) =>
-        // minEdge at its floor (0%) means "no edge filter" -- some graded
-        // picks carry a negative edge (the model still grades whichever
-        // side it liked better even when neither side looked profitable),
-        // and those should still count by default so the unfiltered
-        // totals here match the overall summary above, not silently drop
-        // picks before the user has touched the slider.
         (minEdge <= 0 || p.edge >= minEdge) &&
         (confidence === "All" || p.confidence === confidence) &&
-        // No bet types selected means "All" -- same as before this was
-        // multi-select, just expressed as an empty set instead of a
-        // sentinel string.
         (markets.size === 0 || markets.has(p.market_label))
     );
   }, [detail, minEdge, confidence, markets]);
@@ -188,7 +166,7 @@ function TrackRecordPanel({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between">
-          <h2 className="text-xl font-bold">{label}</h2>
+          <h2 className="text-xl font-bold">Track record</h2>
           <button
             onClick={onClose}
             className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -199,7 +177,7 @@ function TrackRecordPanel({
         </div>
 
         <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
-          <strong>{pct(overall.hit_rate)}</strong> of picks have hit ({overall.hits}/{overall.picks})
+          <strong>{pct(overall.hit_rate)}</strong> of game bets have hit ({overall.hits}/{overall.picks})
           {trackRecord.weeks_graded > 0 && (
             <>
               {" "}
@@ -220,10 +198,10 @@ function TrackRecordPanel({
         </div>
 
         {loading && (
-          <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">Loading graded picks…</p>
+          <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">Loading graded bets…</p>
         )}
         {error && (
-          <p className="py-4 text-sm text-red-600 dark:text-red-400">Couldn't load pick details ({error}).</p>
+          <p className="py-4 text-sm text-red-600 dark:text-red-400">Couldn't load bet details ({error}).</p>
         )}
 
         {detail && (
@@ -285,11 +263,11 @@ function TrackRecordPanel({
               <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
                 {filteredSummary.n > 0 ? (
                   <>
-                    <strong>{pct(filteredSummary.hitRate)}</strong> of matching picks have hit (
+                    <strong>{pct(filteredSummary.hitRate)}</strong> of matching bets have hit (
                     {filteredSummary.hits}/{filteredSummary.n})
                   </>
                 ) : (
-                  "No graded picks match these filters."
+                  "No graded bets match these filters."
                 )}
               </div>
             )}
@@ -322,26 +300,20 @@ function TrackRecordPanel({
                         <table className="w-full text-left text-sm">
                           <thead>
                             <tr className="border-b border-slate-200 text-xs uppercase text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                              <th className="py-1.5 pl-3 pr-2">Player</th>
-                              <th className="py-1.5 pr-2">Market</th>
+                              <th className="py-1.5 pl-3 pr-2">Matchup</th>
+                              <th className="py-1.5 pr-2">Segment</th>
                               <th className="py-1.5 pr-2">Pick</th>
                               <th className="py-1.5 pr-2">Edge</th>
-                              <th className="py-1.5 pr-2">Actual</th>
+                              <th className="py-1.5 pr-2">Score</th>
                               <th className="py-1.5 pr-2">Result</th>
                             </tr>
                           </thead>
                           <tbody>
                             {g.picks.map((p, i) => (
                               <tr key={i} className="border-b border-slate-100 last:border-0 dark:border-slate-800/60">
-                                <td className="py-1.5 pl-3 pr-2">
-                                  {p.player_name}
-                                  <span className="text-slate-400 dark:text-slate-500">
-                                    {" "}
-                                    · {p.team} vs {p.opponent}
-                                  </span>
-                                </td>
-                                <td className="py-1.5 pr-2">{p.market_label}</td>
-                                <td className="py-1.5 pr-2">{pickLabel(p)}</td>
+                                <td className="py-1.5 pl-3 pr-2">{p.matchup}</td>
+                                <td className="py-1.5 pr-2">{p.segment_label}</td>
+                                <td className="py-1.5 pr-2">{p.side_label}</td>
                                 <td className="py-1.5 pr-2">{pct(p.edge)}</td>
                                 <td className="py-1.5 pr-2">{actualLabel(p)}</td>
                                 <td

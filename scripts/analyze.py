@@ -442,11 +442,22 @@ def grade_past_weeks(stats_df, games_df, current_season, current_week):
         print(f"  Graded {season} wk{week}: {len(graded)}/{len(snapshot['picks'])} picks ({status})")
 
 
-def build_track_record():
+def build_track_record(market_filter=None):
     """Rolls up every graded week into overall + per-confidence-tier hit
     rates. Fully derived from data/history/results_*.json, so unlike that
     directory this doesn't need to be committed anywhere -- it's rebuilt
     fresh from the committed source of truth on every run.
+
+    `market_filter`, if given, is a predicate(pick) -> bool applied before
+    aggregating -- used to build separate track records for the main
+    player-prop markets and for Anytime TD (see
+    cap_anytime_td_high_confidence) out of the same underlying graded-pick
+    history, without maintaining two separate history directories. A
+    week's `fully_graded` flag is whole-file (every market together), so
+    it's reused as-is for both scoped views -- a week can be "not fully
+    graded" for one view because a pick in the *other* view is still
+    pending, which is an acceptable imprecision rather than worth a
+    separate completion flag per market slice.
     """
     def summarize(picks):
         if not picks:
@@ -463,14 +474,15 @@ def build_track_record():
                 continue
             with open(os.path.join(HISTORY_DIR, fname)) as f:
                 data = json.load(f)
+            picks = [p for p in data["picks"] if market_filter(p)] if market_filter else data["picks"]
             # A week's picks count toward the hit rate the moment their
             # own game is graded, even before the rest of that week's
             # games are final -- only the "N graded weeks" figure below
             # waits for a week to be fully done.
-            all_picks.extend(data["picks"])
+            all_picks.extend(picks)
             if data.get("fully_graded"):
                 weeks_graded += 1
-            elif data["picks"]:
+            elif picks:
                 week_in_progress = True
 
     by_confidence = {}
@@ -488,12 +500,14 @@ def build_track_record():
     }
 
 
-def build_track_record_detail():
+def build_track_record_detail(market_filter=None):
     """Every graded pick, with enough detail to show which ones hit and how
     close the misses were (see the `margin` field grade_past_weeks writes).
     Kept in its own file rather than folded into track_record.json's small
     summary, since this grows every week all season and should only be
     fetched when a user actually opens the track record panel.
+
+    `market_filter`: see build_track_record.
     """
     picks = []
     if os.path.isdir(HISTORY_DIR):
@@ -503,6 +517,8 @@ def build_track_record_detail():
             with open(os.path.join(HISTORY_DIR, fname)) as f:
                 data = json.load(f)
             for p in data["picks"]:
+                if market_filter and not market_filter(p):
+                    continue
                 picks.append(
                     {
                         "season": data["season"],
@@ -671,6 +687,33 @@ def cap_confidence_if_cold_this_season(confidence, game_log, current_season, bin
     if any(side_hits(binary, side, line, g["value"]) for g in season_games):
         return confidence
     return "Medium"
+
+
+# Anytime TD is close to a coin flip for most players and highly dependent
+# on in-game factors the model can't see (game script, red zone role on a
+# given week, goal-line packages) -- the track record bears this out: High-
+# confidence Anytime TD picks have hit at a far lower rate than every other
+# market's High tier. Capping how much of the slate can carry a High label
+# keeps it meaningfully selective rather than a routine tag most TD props
+# end up with.
+ANYTIME_TD_MAX_HIGH_SHARE = 0.10
+
+
+def cap_anytime_td_high_confidence(props):
+    """Mutates `props` in place: if more than ANYTIME_TD_MAX_HIGH_SHARE of
+    this week's Anytime TD props are labeled High, keeps High only for the
+    highest-edge ones up to that share and demotes the rest to Medium.
+    Never raises a prop's confidence, and no-ops entirely if the share is
+    already at or under the cap.
+    """
+    td_props = [p for p in props if p["market"] == "player_anytime_td"]
+    high = [p for p in td_props if p["confidence"] == "High"]
+    max_high = int(len(td_props) * ANYTIME_TD_MAX_HIGH_SHARE)
+    if len(high) <= max_high:
+        return
+    high.sort(key=lambda p: p["recommended_edge"], reverse=True)
+    for p in high[max_high:]:
+        p["confidence"] = "Medium"
 
 
 def project_probabilities(mean, std, line, binary=False):
@@ -879,6 +922,7 @@ def main():
         )
 
     props.sort(key=lambda p: p["recommended_edge"], reverse=True)
+    cap_anytime_td_high_confidence(props)
 
     final_counts = Counter(p["market"] for p in props)
     print("Per-market quote -> prop funnel:")
@@ -900,51 +944,75 @@ def main():
         f"split={agreement_counts.get('split', 0)}"
     )
 
-    anytime_td_props = sorted(
+    anytime_td_by_price = sorted(
         (p for p in props if p["market"] == "player_anytime_td" and p["price_over"] is not None),
         key=lambda p: p["price_over"],
     )
-    if anytime_td_props:
+    if anytime_td_by_price:
         print("Shortest anytime_td prices (most likely to score):")
-        for p in anytime_td_props[:10]:
+        for p in anytime_td_by_price[:10]:
             print(
                 f"  {p['player_name']} ({p['position']}, {p['team']} vs {p['opponent']}): "
                 f"{p['price_over']} via {p['book_over']}, sample_games={p['sample_games']}, "
                 f"projected={p['projected_value']}"
             )
         print("Longest anytime_td prices (least likely to score):")
-        for p in anytime_td_props[-10:]:
+        for p in anytime_td_by_price[-10:]:
             print(
                 f"  {p['player_name']} ({p['position']}, {p['team']} vs {p['opponent']}): "
                 f"{p['price_over']} via {p['book_over']}, sample_games={p['sample_games']}, "
                 f"projected={p['projected_value']}"
             )
+        high_share = sum(1 for p in anytime_td_by_price if p["confidence"] == "High") / len(anytime_td_by_price)
+        print(f"Anytime TD High-confidence share: {high_share:.1%} (cap is {ANYTIME_TD_MAX_HIGH_SHARE:.0%})")
+
+    # Anytime TD gets pulled into its own tab (see cap_anytime_td_high_confidence
+    # above for why it's also held to a stricter confidence bar): a near-
+    # coin-flip, game-script-dependent market skews the standard player-prop
+    # track record enough on its own to be worth tracking completely
+    # separately, not just filtering client-side.
+    td_props = [p for p in props if p["market"] == "player_anytime_td"]
+    player_props = [p for p in props if p["market"] != "player_anytime_td"]
 
     with open(os.path.join(DATA_DIR, "props.json"), "w") as f:
-        json.dump(props, f)
+        json.dump(player_props, f)
+    with open(os.path.join(DATA_DIR, "anytime_td_props.json"), "w") as f:
+        json.dump(td_props, f)
 
-    meta = {
+    non_td_markets = {k: v["label"] for k, v in MARKETS.items() if k != "player_anytime_td"}
+    shared_meta = {
         "generated_at": utcnow_iso(),
         "baseline_season": season_week["baseline_season"],
         "upcoming_season": season_week["upcoming_season"],
         "upcoming_week": season_week["upcoming_week"],
         "odds_source": odds_meta["source"],
         "odds_fetched_at": odds_meta["fetched_at"],
-        "prop_count": len(props),
-        "markets": {k: v["label"] for k, v in MARKETS.items()},
         "inactive_players_excluded": len(inactive_players),
         "matchups": matchup_options,
         "time_slots": [
             t for t in TIME_SLOT_ORDER if t in {info["time_slot"] for info in game_lookup.values()}
         ],
     }
+    meta = {**shared_meta, "prop_count": len(player_props), "markets": non_td_markets}
     with open(os.path.join(DATA_DIR, "meta.json"), "w") as f:
         json.dump(meta, f)
 
-    print(f"Wrote {len(props)} props -> data/props.json")
+    anytime_td_meta = {
+        **shared_meta,
+        "prop_count": len(td_props),
+        "markets": {"player_anytime_td": MARKETS["player_anytime_td"]["label"]},
+    }
+    with open(os.path.join(DATA_DIR, "anytime_td_meta.json"), "w") as f:
+        json.dump(anytime_td_meta, f)
+
+    print(f"Wrote {len(player_props)} props -> data/props.json, {len(td_props)} Anytime TD props -> data/anytime_td_props.json")
     print(meta)
 
     if season_week["upcoming_season"] is not None and season_week["upcoming_week"] is not None:
+        # Snapshots every market together (Anytime TD included) -- grading
+        # and both track records are derived from this same combined
+        # history, split apart only when read (see build_track_record's
+        # market_filter).
         snapshot_current_week_picks(props, season_week["upcoming_season"], season_week["upcoming_week"])
         print(
             f"Snapshotted {len(props)} picks for {season_week['upcoming_season']} "
@@ -952,17 +1020,39 @@ def main():
         )
     grade_past_weeks(stats_df, games, current_season, season_week["upcoming_week"])
 
-    track_record = build_track_record()
+    def is_anytime_td(p):
+        return p["market"] == "player_anytime_td"
+
+    def is_not_anytime_td(p):
+        return p["market"] != "player_anytime_td"
+
+    track_record = build_track_record(is_not_anytime_td)
     with open(os.path.join(DATA_DIR, "track_record.json"), "w") as f:
         json.dump(track_record, f)
     print(f"Wrote track record ({track_record['weeks_graded']} weeks graded) -> data/track_record.json")
 
-    track_record_detail = build_track_record_detail()
+    track_record_detail = build_track_record_detail(is_not_anytime_td)
     with open(os.path.join(DATA_DIR, "track_record_detail.json"), "w") as f:
         json.dump(track_record_detail, f)
     print(
         f"Wrote track record detail ({len(track_record_detail['picks'])} graded picks) "
         "-> data/track_record_detail.json"
+    )
+
+    anytime_td_track_record = build_track_record(is_anytime_td)
+    with open(os.path.join(DATA_DIR, "anytime_td_track_record.json"), "w") as f:
+        json.dump(anytime_td_track_record, f)
+    print(
+        f"Wrote Anytime TD track record ({anytime_td_track_record['weeks_graded']} weeks graded) "
+        "-> data/anytime_td_track_record.json"
+    )
+
+    anytime_td_track_record_detail = build_track_record_detail(is_anytime_td)
+    with open(os.path.join(DATA_DIR, "anytime_td_track_record_detail.json"), "w") as f:
+        json.dump(anytime_td_track_record_detail, f)
+    print(
+        f"Wrote Anytime TD track record detail ({len(anytime_td_track_record_detail['picks'])} graded picks) "
+        "-> data/anytime_td_track_record_detail.json"
     )
 
 
