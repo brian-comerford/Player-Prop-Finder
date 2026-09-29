@@ -9,7 +9,21 @@ import GamesTable from "./components/GamesTable";
 import GameDetail from "./components/GameDetail";
 import InfoPage from "./components/InfoPage";
 import TrackRecordSection from "./components/TrackRecordSection";
-import { fetchGameMeta, fetchGameProps, fetchMeta, fetchProps, fetchTrackRecord } from "./lib/data";
+import GameTrackRecordSection from "./components/GameTrackRecordSection";
+import {
+  fetchAnytimeTdMeta,
+  fetchAnytimeTdProps,
+  fetchAnytimeTdTrackRecord,
+  fetchAnytimeTdTrackRecordDetail,
+  fetchGameMeta,
+  fetchGameProps,
+  fetchGameTrackRecord,
+  fetchGameTrackRecordDetail,
+  fetchMeta,
+  fetchProps,
+  fetchTrackRecord,
+  fetchTrackRecordDetail,
+} from "./lib/data";
 import type { GameMeta, GameProp, Meta, Prop, TrackRecord } from "./lib/types";
 import { sideEdge } from "./lib/odds";
 import { sideEdge as sideEdgeGame } from "./lib/gameOdds";
@@ -22,7 +36,7 @@ const CONFIDENCE_RANK: Record<string, number> = { Low: 0, Medium: 1, High: 2 };
 // gets slow enough (multiple seconds, worse on a phone) that it reads as
 // hung rather than working.
 const EXPORT_ROW_LIMIT = 50;
-type Tab = "props" | "games" | "info";
+type Tab = "props" | "td" | "games" | "info";
 
 function summarizeFilters(filters: FilterState, meta: Meta): string {
   const parts: string[] = [];
@@ -50,11 +64,17 @@ export default function App() {
   const [props, setProps] = useState<Prop[] | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [trackRecord, setTrackRecord] = useState<TrackRecord | null>(null);
+  const [tdProps, setTdProps] = useState<Prop[] | null>(null);
+  const [tdMeta, setTdMeta] = useState<Meta | null>(null);
+  const [tdTrackRecord, setTdTrackRecord] = useState<TrackRecord | null>(null);
+  const [tdError, setTdError] = useState<string | null>(null);
   const [gameProps, setGameProps] = useState<GameProp[] | null>(null);
   const [gameMeta, setGameMeta] = useState<GameMeta | null>(null);
+  const [gameTrackRecord, setGameTrackRecord] = useState<TrackRecord | null>(null);
   const [gameError, setGameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [tdFilters, setTdFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [gameFilters, setGameFilters] = useState<GameFilterState>(DEFAULT_GAME_FILTERS);
   const [selected, setSelected] = useState<Prop | null>(null);
   const [selectedGame, setSelectedGame] = useState<GameProp | null>(null);
@@ -76,6 +96,19 @@ export default function App() {
     fetchTrackRecord()
       .then(setTrackRecord)
       .catch(() => setTrackRecord(null));
+    // Anytime TD gets its own tab, own data files, and own track record --
+    // pulled out of the standard player-props flow entirely (see
+    // scripts/analyze.py's cap_anytime_td_high_confidence), so it's fetched
+    // and can fail independently of the Props tab too.
+    Promise.all([fetchAnytimeTdProps(), fetchAnytimeTdMeta()])
+      .then(([tp, tm]) => {
+        setTdProps(tp);
+        setTdMeta(tm);
+      })
+      .catch((e) => setTdError(String(e)));
+    fetchAnytimeTdTrackRecord()
+      .then(setTdTrackRecord)
+      .catch(() => setTdTrackRecord(null));
     // Also independent of the player-props load above -- the Games tab has
     // its own data files and can fail or be empty (e.g. no odds source
     // configured) without affecting the Props tab at all.
@@ -85,6 +118,9 @@ export default function App() {
         setGameMeta(gm);
       })
       .catch((e) => setGameError(String(e)));
+    fetchGameTrackRecord()
+      .then(setGameTrackRecord)
+      .catch(() => setGameTrackRecord(null));
   }, []);
 
   const filtered = useMemo(() => {
@@ -101,6 +137,21 @@ export default function App() {
       .filter((p) => CONFIDENCE_RANK[p.confidence] >= minConfidenceRank)
       .sort((a, b) => b.recommended_edge - a.recommended_edge);
   }, [props, filters]);
+
+  const filteredTd = useMemo(() => {
+    if (!tdProps) return [];
+    const search = tdFilters.search.trim().toLowerCase();
+    const minConfidenceRank = CONFIDENCE_RANK[tdFilters.minConfidence] ?? 0;
+    return tdProps
+      .filter((p) => (search ? p.player_name.toLowerCase().includes(search) : true))
+      .filter((p) => (tdFilters.position === "All" ? true : p.position === tdFilters.position))
+      .filter((p) => (tdFilters.market === "All" ? true : p.market === tdFilters.market))
+      .filter((p) => (tdFilters.matchup === "All" ? true : p.matchup === tdFilters.matchup))
+      .filter((p) => (tdFilters.timeSlot === "All" ? true : p.time_slot === tdFilters.timeSlot))
+      .filter((p) => (sideEdge(p, p.recommended_side) ?? 0) >= tdFilters.minEdge)
+      .filter((p) => CONFIDENCE_RANK[p.confidence] >= minConfidenceRank)
+      .sort((a, b) => b.recommended_edge - a.recommended_edge);
+  }, [tdProps, tdFilters]);
 
   const gameMatchups = useMemo(
     () => Array.from(new Set((gameProps ?? []).map((p) => p.matchup))),
@@ -119,7 +170,8 @@ export default function App() {
       .sort((a, b) => b.recommended_edge - a.recommended_edge);
   }, [gameProps, gameFilters]);
 
-  const activeRows = tab === "games" ? filteredGames : tab === "props" ? filtered : [];
+  const activeRows =
+    tab === "games" ? filteredGames : tab === "props" ? filtered : tab === "td" ? filteredTd : [];
 
   // Exports the current (filtered/sorted) table as a PNG someone can save or
   // share, e.g. after narrowing down to the bets they actually want. Builds
@@ -131,7 +183,7 @@ export default function App() {
   // viewed later with no other context (a saved file, a text to a friend).
   async function handleExportImage() {
     const tableEl = tableWrapperRef.current?.querySelector("table");
-    if (!tableEl || (tab === "props" && !meta) || (tab === "games" && !gameMeta)) return;
+    if (!tableEl || (tab === "props" && !meta) || (tab === "td" && !tdMeta) || (tab === "games" && !gameMeta)) return;
     if (activeRows.length > EXPORT_ROW_LIMIT) {
       alert(
         `That's ${activeRows.length} rows -- too many for one image (and painfully slow to render). ` +
@@ -179,7 +231,9 @@ export default function App() {
       subtitle.textContent =
         tab === "games"
           ? `${summarizeGameFilters(gameFilters, gameMeta!)} · ${activeRows.length} bets · ${new Date().toLocaleString()}`
-          : `${summarizeFilters(filters, meta!)} · ${activeRows.length} props · ${new Date().toLocaleString()}`;
+          : tab === "td"
+            ? `${summarizeFilters(tdFilters, tdMeta!)} · ${activeRows.length} props · ${new Date().toLocaleString()}`
+            : `${summarizeFilters(filters, meta!)} · ${activeRows.length} props · ${new Date().toLocaleString()}`;
       header.appendChild(title);
       header.appendChild(subtitle);
 
@@ -264,7 +318,7 @@ export default function App() {
           <Banner meta={meta} />
 
           <div className="flex gap-1 border-b border-slate-200 dark:border-slate-800">
-            {(["props", "games", "info"] as const).map((t) => (
+            {(["props", "td", "games", "info"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -274,7 +328,7 @@ export default function App() {
                     : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
-                {t === "props" ? "Props" : t === "games" ? "Games" : "Info"}
+                {t === "props" ? "Props" : t === "td" ? "Anytime TD" : t === "games" ? "Games" : "Info"}
               </button>
             ))}
           </div>
@@ -304,6 +358,59 @@ export default function App() {
               <div ref={tableWrapperRef}>
                 <PropsTable props={filtered} onSelect={setSelected} />
               </div>
+              <TrackRecordSection trackRecord={trackRecord} fetchDetail={fetchTrackRecordDetail} label="Track record" />
+            </>
+          )}
+
+          {tab === "td" && (
+            <>
+              {tdError && (
+                <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+                  Couldn't load Anytime TD data ({tdError}).
+                </div>
+              )}
+              {!tdError && (!tdProps || !tdMeta) && (
+                <div className="py-16 text-center text-slate-500 dark:text-slate-400">
+                  Loading Anytime TD props…
+                </div>
+              )}
+              {tdProps && tdMeta && (
+                <>
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                    Anytime TD is close to a coin flip and heavily dependent on game script, so
+                    it's tracked separately here -- High confidence is capped to at most 10% of
+                    the slate. See the Info tab.
+                  </div>
+                  <Filters meta={tdMeta} filters={tdFilters} onChange={setTdFilters} />
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
+                    <span>
+                      Showing {filteredTd.length} of {tdProps.length} props
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {filteredTd.length > EXPORT_ROW_LIMIT && (
+                        <span className="text-xs text-amber-600 dark:text-amber-400">
+                          Narrow your filters to {EXPORT_ROW_LIMIT} or fewer props to save an image
+                        </span>
+                      )}
+                      <button
+                        onClick={handleExportImage}
+                        disabled={exporting || filteredTd.length === 0 || filteredTd.length > EXPORT_ROW_LIMIT}
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                      >
+                        {exporting ? "Saving…" : "Save image"}
+                      </button>
+                    </div>
+                  </div>
+                  <div ref={tableWrapperRef}>
+                    <PropsTable props={filteredTd} onSelect={setSelected} />
+                  </div>
+                  <TrackRecordSection
+                    trackRecord={tdTrackRecord}
+                    fetchDetail={fetchAnytimeTdTrackRecordDetail}
+                    label="Track record"
+                  />
+                </>
+              )}
             </>
           )}
 
@@ -351,14 +458,13 @@ export default function App() {
                   <div ref={tableWrapperRef}>
                     <GamesTable props={filteredGames} onSelect={setSelectedGame} />
                   </div>
+                  <GameTrackRecordSection trackRecord={gameTrackRecord} fetchDetail={fetchGameTrackRecordDetail} />
                 </>
               )}
             </>
           )}
 
           {tab === "info" && <InfoPage theme={theme} onThemeChange={setTheme} />}
-
-          <TrackRecordSection trackRecord={trackRecord} />
         </div>
       )}
 

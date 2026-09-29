@@ -140,3 +140,24 @@ export interface GameMeta {
   prop_count: number;
   segments: Record<string, string>;
 }
+
+export interface GradedGamePick {
+  season: number;
+  week: number;
+  matchup: string;
+  segment_label: string;
+  market_label: string;
+  side_label: string;
+  line: number | null;
+  confidence: Confidence;
+  edge: number;
+  actual_home_points: number;
+  actual_away_points: number;
+  hit: boolean;
+  margin: number | null;
+}
+
+export interface GameTrackRecordDetail {
+  updated_at: string;
+  picks: GradedGamePick[];
+}

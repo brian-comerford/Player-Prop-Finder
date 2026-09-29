@@ -90,6 +90,13 @@ export default function InfoPage({
           badge next to their name &mdash; the projection is built purely from past stats, so it
           has no way to know about a game-status question like that on its own.
         </p>
+        <p>
+          Anytime TD lives in its own tab, separate from every other player-prop market. It's
+          close to a coin flip for most players and depends heavily on things the model can't
+          see week to week &mdash; game script, a specific week's red zone role, goal-line
+          packages &mdash; so it's held to a stricter confidence bar and tracked with its own
+          record rather than blended into the main one; see Confidence and Track record below.
+        </p>
       </Section>
 
       <Section title="Table columns">
@@ -147,7 +154,11 @@ export default function InfoPage({
             projection can still call it a good bet, but a trend badge like "8 of last 10
             games" mixes in last season's games unweighted, so it can look stronger than the
             player's real form this year. Below 3 current-season games, a single miss is too
-            close to a coin flip to hold against it.
+            close to a coin flip to hold against it. On the Anytime TD tab specifically, High is
+            capped further still: no more than 10% of that week's Anytime TD props can carry a
+            High label at all, keeping only the highest-edge ones and demoting the rest to
+            Medium &mdash; the track record showed High-confidence Anytime TD picks hitting far
+            less often than High on every other market.
           </Term>
         </dl>
       </Section>
@@ -274,17 +285,28 @@ export default function InfoPage({
 
       <Section title="Track record">
         <p>
-          The <strong>Track record</strong> button at the bottom of the page shows how the
-          model's own picks have actually done: for every player and stat, the recommended
-          side is saved right before that specific game kicks off (each team's picks freeze
-          independently, at its own kickoff, not the whole week at once), then graded against
-          the real final result once the game is over &mdash; an Over on 65.5 rushing yards is
-          a hit if the player actually ran for more than that, regardless of what the model
-          would say if you re-ran it today with hindsight. Since an NFL week's games finish on
-          staggered days, this updates throughout the week as each game wraps &mdash; Thursday
-          night's picks can already be graded while Sunday's games are still being played.
-          That hit rate, and the breakdown by Confidence tier, is a running total across every
-          graded pick so far, not just a recent hot or cold streak.
+          Each tab has its own <strong>Track record</strong> button at the bottom of the page,
+          tracked completely separately: the Props tab's covers every player-prop market except
+          Anytime TD, the Anytime TD tab has its own, and the Games tab has its own for
+          spreads/totals. They're kept apart because Anytime TD's hit rate runs meaningfully
+          lower than every other market's (see the note on the Anytime TD tab) and would
+          otherwise drag the main player-prop number down in a way that obscures how the other
+          markets are actually doing, and game bets are a different kind of pick entirely
+          (team-level, not player-level).
+        </p>
+        <p>
+          For every player and stat, the recommended side is saved right before that specific
+          game kicks off (each team's picks freeze independently, at its own kickoff, not the
+          whole week at once), then graded against the real final result once the game is over
+          &mdash; an Over on 65.5 rushing yards is a hit if the player actually ran for more than
+          that, regardless of what the model would say if you re-ran it today with hindsight.
+          Game bets (spreads/totals) are graded the same way against the real final score for a
+          full-game bet; 1st/2nd-half bets are graded against each team's actual scoring plays
+          in that half specifically, since the schedule data itself only has full-game scores.
+          Since an NFL week's games finish on staggered days, this updates throughout the week as
+          each game wraps &mdash; Thursday night's picks can already be graded while Sunday's
+          games are still being played. That hit rate, and the breakdown by Confidence tier, is
+          a running total across every graded pick so far, not just a recent hot or cold streak.
         </p>
         <p>
           Opening the panel also lists every graded pick individually, grouped by week and

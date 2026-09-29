@@ -38,17 +38,20 @@ jobs:
         working-directory: scripts
         run: python grade_only.py
 
-      # props.json/meta.json/game_props.json/game_meta.json aren't
-      # committed to the repo (see .gitignore) since they're normally
-      # rebuilt fresh from live odds every run. This run deliberately
-      # skips the odds fetch, so it pulls the currently-deployed copies
-      # from the live site instead -- unchanged from the last full run,
-      # since no new odds were fetched to change them.
+      # props.json/meta.json/anytime_td_props.json/anytime_td_meta.json/
+      # game_props.json/game_meta.json aren't committed to the repo (see
+      # .gitignore) since they're normally rebuilt fresh from live odds
+      # every run. This run deliberately skips the odds fetch, so it pulls
+      # the currently-deployed copies from the live site instead --
+      # unchanged from the last full run, since no new odds were fetched
+      # to change them.
       - name: Fetch current live props/game data (unchanged since last full run)
         run: |
           mkdir -p data
           curl -sSL --fail https://brian-comerford.github.io/Player-Prop-Finder/data/props.json -o data/props.json
           curl -sSL --fail https://brian-comerford.github.io/Player-Prop-Finder/data/meta.json -o data/meta.json
+          curl -sSL --fail https://brian-comerford.github.io/Player-Prop-Finder/data/anytime_td_props.json -o data/anytime_td_props.json
+          curl -sSL --fail https://brian-comerford.github.io/Player-Prop-Finder/data/anytime_td_meta.json -o data/anytime_td_meta.json
           curl -sSL --fail https://brian-comerford.github.io/Player-Prop-Finder/data/game_props.json -o data/game_props.json
           curl -sSL --fail https://brian-comerford.github.io/Player-Prop-Finder/data/game_meta.json -o data/game_meta.json
 
