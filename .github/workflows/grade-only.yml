@@ -19,16 +19,24 @@ on:
     # about an hour *later* than the ET time noted below, never earlier
     # -- more buffer after a game ends, not less.
     #
+    # The late-night slots are scheduled just after midnight ET (rather
+    # than 11:59pm) and off the :00/:30 marks entirely -- GitHub documents
+    # that scheduled runs can be delayed (or dropped) during high-load
+    # windows, which cluster right at the top of the hour, so :59/:00 is
+    # about the worst minute to pick. A run queued late on a Friday never
+    # fired at all (confirmed via the Actions run history: zero
+    # schedule-triggered runs around the expected 04:59 UTC window).
+    #
     # Sunday: 6pm ET (an hour after the early 1pm games), 9pm ET (after
-    # the late-afternoon games), and 11:59pm ET (after Sunday Night
-    # Football).
+    # the late-afternoon games), and just after midnight ET (after Sunday
+    # Night Football).
     - cron: "0 23 * * SUN" # Sunday 6:00pm ET
     - cron: "0 2 * * MON" # Sunday 9:00pm ET
-    - cron: "59 4 * * MON" # Sunday 11:59pm ET
+    - cron: "7 5 * * MON" # Monday 12:07am ET (after Sunday Night Football)
     # Thursday Night Football.
-    - cron: "59 4 * * FRI" # Thursday 11:59pm ET
+    - cron: "7 5 * * FRI" # Friday 12:07am ET (after Thursday Night Football)
     # Monday Night Football.
-    - cron: "59 4 * * TUE" # Monday 11:59pm ET
+    - cron: "7 5 * * TUE" # Tuesday 12:07am ET (after Monday Night Football)
 
 permissions:
   contents: write
