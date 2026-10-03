@@ -3,6 +3,7 @@ import { probToAmericanOdds } from "./odds";
 const BOOK_LABELS: Record<string, string> = {
   draftkings: "DraftKings",
   fanduel: "FanDuel",
+  fliff: "Fliff",
   kalshi: "Kalshi",
   sample: "Sample",
 };

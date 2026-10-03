@@ -18,7 +18,7 @@ Either way the output is a flat list of "quotes":
                               # reused as price_yes/price_no for the
                               # binary "anytime_td" market
   book_over, book_under      # which book each price came from, e.g.
-                              # "draftkings" / "fanduel" / "kalshi" / "sample"
+                              # "draftkings" / "fanduel" / "fliff" / "kalshi" / "sample"
 }
 written to data/odds_quotes.json alongside data/odds_meta.json.
 """
@@ -36,11 +36,13 @@ from kalshi import fetch_kalshi_quotes
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 SPORT_KEY = "americanfootball_nfl"
-# Restricted to the two books most people can actually bet on, rather than
-# whatever else The Odds API's broader "us" region happens to aggregate --
-# see the "book_over"/"book_under" fields for which of the two a given
-# price came from.
-BOOKMAKERS = "draftkings,fanduel"
+# Restricted to books most people can actually bet on, rather than whatever
+# else The Odds API's broader "us"/"us2" regions happen to aggregate -- see
+# the "book_over"/"book_under" fields for which of these a given price came
+# from. Fliff spans the separate "us2" region, which The Odds API bills as
+# an extra region multiplier on top of "us" (draftkings/fanduel) -- watch
+# the free tier's 500 credits/month if usage climbs after enabling it.
+BOOKMAKERS = "draftkings,fanduel,fliff"
 ODDS_FORMAT = "american"
 
 
