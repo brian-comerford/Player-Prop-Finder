@@ -980,6 +980,7 @@ def main():
         json.dump(td_props, f)
 
     non_td_markets = {k: v["label"] for k, v in MARKETS.items() if k != "player_anytime_td"}
+    books = sorted({p[side] for p in props for side in ("book_over", "book_under") if p[side]})
     shared_meta = {
         "generated_at": utcnow_iso(),
         "baseline_season": season_week["baseline_season"],
@@ -992,6 +993,7 @@ def main():
         "time_slots": [
             t for t in TIME_SLOT_ORDER if t in {info["time_slot"] for info in game_lookup.values()}
         ],
+        "books": books,
     }
     meta = {**shared_meta, "prop_count": len(player_props), "markets": non_td_markets}
     with open(os.path.join(DATA_DIR, "meta.json"), "w") as f:

@@ -55,6 +55,7 @@ export interface Meta {
   inactive_players_excluded: number;
   matchups: string[];
   time_slots: string[];
+  books: string[];
 }
 
 export interface HitRateSummary {
@@ -139,6 +140,7 @@ export interface GameMeta {
   odds_fetched_at: string | null;
   prop_count: number;
   segments: Record<string, string>;
+  books: string[];
 }
 
 export interface GradedGamePick {

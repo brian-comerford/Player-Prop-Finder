@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Confidence, GradedPick, TrackRecord, TrackRecordDetail } from "../lib/types";
+import { pillClass } from "../lib/format";
 import { useLockBodyScroll } from "../lib/useLockBodyScroll";
 
 const CONFIDENCE_TIERS: Confidence[] = ["High", "Medium", "Low"];
@@ -24,14 +25,6 @@ function pickLabel(p: GradedPick): string {
 function actualLabel(p: GradedPick): string {
   if (p.line === null) return p.actual_value > 0 ? "TD" : "No TD";
   return p.actual_value.toString();
-}
-
-function pillClass(selected: boolean): string {
-  return `rounded-full border px-2 py-0.5 text-xs transition-colors ${
-    selected
-      ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
-      : "border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-  }`;
 }
 
 // detail.picks arrives sorted most-recent-week-first; grouping preserves

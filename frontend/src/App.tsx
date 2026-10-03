@@ -25,8 +25,9 @@ import {
   fetchTrackRecordDetail,
 } from "./lib/data";
 import type { GameMeta, GameProp, Meta, Prop, TrackRecord } from "./lib/types";
-import { sideEdge } from "./lib/odds";
-import { sideEdge as sideEdgeGame } from "./lib/gameOdds";
+import { formatBook } from "./lib/format";
+import { sideBook, sideEdge } from "./lib/odds";
+import { sideBook as sideBookGame, sideEdge as sideEdgeGame } from "./lib/gameOdds";
 import { useTheme } from "./lib/useTheme";
 
 const CONFIDENCE_RANK: Record<string, number> = { Low: 0, Medium: 1, High: 2 };
@@ -47,6 +48,7 @@ function summarizeFilters(filters: FilterState, meta: Meta): string {
   if (filters.timeSlot !== "All") parts.push(filters.timeSlot);
   if (filters.minEdge > 0) parts.push(`Min. edge ${(filters.minEdge * 100).toFixed(0)}%+`);
   if (filters.minConfidence !== "Any") parts.push(`${filters.minConfidence}+ confidence`);
+  if (filters.books.size > 0) parts.push(Array.from(filters.books).map(formatBook).join("/"));
   return parts.length ? parts.join(" · ") : "No filters applied";
 }
 
@@ -57,6 +59,7 @@ function summarizeGameFilters(filters: GameFilterState, meta: GameMeta): string 
   if (filters.matchup !== "All") parts.push(filters.matchup);
   if (filters.minEdge > 0) parts.push(`Min. edge ${(filters.minEdge * 100).toFixed(0)}%+`);
   if (filters.minConfidence !== "Any") parts.push(`${filters.minConfidence}+ confidence`);
+  if (filters.books.size > 0) parts.push(Array.from(filters.books).map(formatBook).join("/"));
   return parts.length ? parts.join(" · ") : "No filters applied";
 }
 
@@ -135,6 +138,7 @@ export default function App() {
       .filter((p) => (filters.timeSlot === "All" ? true : p.time_slot === filters.timeSlot))
       .filter((p) => (sideEdge(p, p.recommended_side) ?? 0) >= filters.minEdge)
       .filter((p) => CONFIDENCE_RANK[p.confidence] >= minConfidenceRank)
+      .filter((p) => filters.books.size === 0 || filters.books.has(sideBook(p, p.recommended_side) ?? ""))
       .sort((a, b) => b.recommended_edge - a.recommended_edge);
   }, [props, filters]);
 
@@ -150,6 +154,7 @@ export default function App() {
       .filter((p) => (tdFilters.timeSlot === "All" ? true : p.time_slot === tdFilters.timeSlot))
       .filter((p) => (sideEdge(p, p.recommended_side) ?? 0) >= tdFilters.minEdge)
       .filter((p) => CONFIDENCE_RANK[p.confidence] >= minConfidenceRank)
+      .filter((p) => tdFilters.books.size === 0 || tdFilters.books.has(sideBook(p, p.recommended_side) ?? ""))
       .sort((a, b) => b.recommended_edge - a.recommended_edge);
   }, [tdProps, tdFilters]);
 
@@ -167,6 +172,9 @@ export default function App() {
       .filter((p) => (gameFilters.matchup === "All" ? true : p.matchup === gameFilters.matchup))
       .filter((p) => (sideEdgeGame(p, p.recommended_side) ?? 0) >= gameFilters.minEdge)
       .filter((p) => CONFIDENCE_RANK[p.confidence] >= minConfidenceRank)
+      .filter(
+        (p) => gameFilters.books.size === 0 || gameFilters.books.has(sideBookGame(p, p.recommended_side) ?? "")
+      )
       .sort((a, b) => b.recommended_edge - a.recommended_edge);
   }, [gameProps, gameFilters]);
 
