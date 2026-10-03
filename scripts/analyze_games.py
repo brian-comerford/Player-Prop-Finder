@@ -584,6 +584,7 @@ def main():
     with open(os.path.join(DATA_DIR, "game_props.json"), "w") as f:
         json.dump(props, f)
 
+    books = sorted({p[side] for p in props for side in ("book_a", "book_b") if p[side]})
     meta = {
         "generated_at": utcnow_iso(),
         "upcoming_season": upcoming_season,
@@ -592,6 +593,7 @@ def main():
         "odds_fetched_at": odds_meta.get("fetched_at"),
         "prop_count": len(props),
         "segments": SEGMENT_LABELS,
+        "books": books,
     }
     with open(os.path.join(DATA_DIR, "game_meta.json"), "w") as f:
         json.dump(meta, f)
