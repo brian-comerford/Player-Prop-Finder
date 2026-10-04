@@ -37,6 +37,14 @@ export function formatLine(line: number | null): string {
   return line === null ? "—" : line.toString();
 }
 
+// Signed units total, e.g. "+12.34u" or "-3.00u". null (no priced picks
+// in this slice) renders as "—" rather than a misleading 0.
+export function formatUnits(units: number | null): string {
+  if (units === null) return "—";
+  const sign = units > 0 ? "+" : units < 0 ? "-" : "";
+  return `${sign}${Math.abs(units).toFixed(2)}u`;
+}
+
 export function edgeColorClass(edge: number): string {
   if (edge >= 0.06) return "text-emerald-600 dark:text-emerald-400 font-semibold";
   if (edge > 0) return "text-emerald-700/80 dark:text-emerald-400/80";

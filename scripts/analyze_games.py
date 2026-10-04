@@ -34,6 +34,7 @@ from common import (
     SEASON_DECAY,
     american_to_implied_prob,
     game_weights,
+    pick_units,
     remove_vig_two_way,
     utcnow_iso,
     weighted_mean_std,
@@ -340,6 +341,8 @@ def snapshot_current_week_game_picks(props, season, week):
             "model_prob": p["model_prob_a"] if p["recommended_side"] == "a" else p["model_prob_b"],
             "edge": p["recommended_edge"],
             "confidence": p["confidence"],
+            # See analyze.py's snapshot_current_week_picks -- same reasoning.
+            "price": p["price_a"] if p["recommended_side"] == "a" else p["price_b"],
         }
         for p in props
     ]
@@ -481,7 +484,17 @@ def build_game_track_record():
         if not picks:
             return None
         hits = sum(1 for p in picks if p["hit"])
-        return {"picks": len(picks), "hits": hits, "hit_rate": round(hits / len(picks), 3)}
+        # See analyze.py's build_track_record -- same reasoning for leaving
+        # unpriced (pre-existing) picks out of the units total.
+        unit_results = [pick_units(p.get("price"), p["hit"]) for p in picks]
+        priced = [u for u in unit_results if u is not None]
+        return {
+            "picks": len(picks),
+            "hits": hits,
+            "hit_rate": round(hits / len(picks), 3),
+            "units": round(sum(priced), 2) if priced else None,
+            "priced_picks": len(priced),
+        }
 
     all_picks = []
     weeks_graded = 0
@@ -538,6 +551,7 @@ def build_game_track_record_detail():
                         "actual_away_points": p["actual_away_points"],
                         "hit": p["hit"],
                         "margin": p["margin"],
+                        "price": p.get("price"),
                     }
                 )
     picks.sort(key=lambda p: (p["season"], p["week"]), reverse=True)

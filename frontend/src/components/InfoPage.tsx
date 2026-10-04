@@ -328,6 +328,17 @@ export default function InfoPage({
           up landing ahead of Medium and Low over time, though with this few games played
           there's no way to promise that yet.
         </p>
+        <p>
+          Alongside the hit rate, the panel also shows <strong>units won</strong> &mdash; the
+          profit or loss from a flat 1-unit bet on every single graded pick, at the real odds
+          that pick was recommended at (not an assumed standard price), so a -150 favorite
+          hitting pays out less than a +120 underdog hitting. A miss always costs exactly 1 unit.
+          This is only as complete as the odds actually recorded: a pick graded before this was
+          tracked has no price to compute units from, so it's left out of the units total (the
+          panel notes how many of the graded picks that total actually covers) while still
+          counting toward the hit rate above it. The same Min. edge, Confidence, and Bet type
+          filters narrow the units figure down to a specific slice too.
+        </p>
       </Section>
 
       <Section title="Where the data comes from">

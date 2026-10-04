@@ -62,6 +62,13 @@ export interface HitRateSummary {
   picks: number;
   hits: number;
   hit_rate: number;
+  // Profit/loss in units for a flat 1-unit bet on every pick, at the real
+  // price each pick was recommended at. null when none of the underlying
+  // picks have a recorded price (e.g. snapshotted before this was
+  // tracked) -- priced_picks says how many of `picks` that total actually
+  // covers.
+  units: number | null;
+  priced_picks: number;
 }
 
 export interface TrackRecord {
@@ -87,6 +94,7 @@ export interface GradedPick {
   actual_value: number;
   hit: boolean;
   margin: number | null;
+  price: number | null;
 }
 
 export interface TrackRecordDetail {
@@ -157,6 +165,7 @@ export interface GradedGamePick {
   actual_away_points: number;
   hit: boolean;
   margin: number | null;
+  price: number | null;
 }
 
 export interface GameTrackRecordDetail {
