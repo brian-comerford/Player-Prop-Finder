@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Confidence, GameTrackRecordDetail, GradedGamePick, TrackRecord } from "../lib/types";
+import { formatUnits, pillClass } from "../lib/format";
+import { pickUnits } from "../lib/odds";
 import { useLockBodyScroll } from "../lib/useLockBodyScroll";
 
 const CONFIDENCE_TIERS: Confidence[] = ["High", "Medium", "Low"];
@@ -18,14 +20,6 @@ function pct(hitRate: number): string {
 
 function actualLabel(p: GradedGamePick): string {
   return `${p.actual_away_points}-${p.actual_home_points}`;
-}
-
-function pillClass(selected: boolean): string {
-  return `rounded-full border px-2 py-0.5 text-xs transition-colors ${
-    selected
-      ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
-      : "border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-  }`;
 }
 
 function groupByWeek(picks: GradedGamePick[]): WeekGroup[] {
@@ -81,6 +75,7 @@ export default function GameTrackRecordSection({
         className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
       >
         Track record: {pct(overall.hit_rate)} ({overall.hits}/{overall.picks})
+        {overall.priced_picks > 0 && <> &middot; {formatUnits(overall.units)}</>}
       </button>
 
       {open && (
@@ -135,7 +130,14 @@ function GameTrackRecordPanel({
   const filteredSummary = useMemo(() => {
     const n = filteredPicks.length;
     const hits = filteredPicks.filter((p) => p.hit).length;
-    return { n, hits, hitRate: n > 0 ? hits / n : 0 };
+    const unitResults = filteredPicks.map((p) => pickUnits(p.price, p.hit)).filter((u): u is number => u !== null);
+    return {
+      n,
+      hits,
+      hitRate: n > 0 ? hits / n : 0,
+      units: unitResults.length > 0 ? unitResults.reduce((a, b) => a + b, 0) : null,
+      pricedPicks: unitResults.length,
+    };
   }, [filteredPicks]);
 
   const weekGroups = useMemo(() => groupByWeek(filteredPicks), [filteredPicks]);
@@ -187,6 +189,13 @@ function GameTrackRecordPanel({
           {trackRecord.week_in_progress &&
             (trackRecord.weeks_graded > 0 ? " plus this week's games as they finish" : " so far this week")}
           {trackRecord.weeks_graded < 4 && " — still an early sample"}
+          {overall.priced_picks > 0 && (
+            <>
+              {" · "}
+              <strong>{formatUnits(overall.units)}</strong> on a flat 1-unit-per-pick basis
+              {overall.priced_picks < overall.picks && ` (${overall.priced_picks} priced picks)`}
+            </>
+          )}
           {CONFIDENCE_TIERS.some((tier) => trackRecord.by_confidence[tier]) && (
             <>
               {" · "}
@@ -265,6 +274,12 @@ function GameTrackRecordPanel({
                   <>
                     <strong>{pct(filteredSummary.hitRate)}</strong> of matching bets have hit (
                     {filteredSummary.hits}/{filteredSummary.n})
+                    {filteredSummary.pricedPicks > 0 && (
+                      <>
+                        {" · "}
+                        <strong>{formatUnits(filteredSummary.units)}</strong>
+                      </>
+                    )}
                   </>
                 ) : (
                   "No graded bets match these filters."

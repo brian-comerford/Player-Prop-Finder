@@ -260,3 +260,19 @@ def prob_to_american(p):
     if p >= 0.5:
         return round(-100 * p / (1 - p))
     return round(100 * (1 - p) / p)
+
+
+def pick_units(price, hit):
+    """Profit/loss in units for a flat 1-unit bet at these American odds --
+    the real price the recommended side was quoted at, not an assumed
+    standard vig, so this is only as accurate as the odds actually priced
+    in at snapshot time. Returns None if the price wasn't recorded (picks
+    snapshotted before this field was added), so callers can leave those
+    out of a units total rather than guessing at a price.
+    """
+    if price is None:
+        return None
+    price = float(price)
+    if not hit:
+        return -1.0
+    return round(price / 100.0, 4) if price > 0 else round(100.0 / -price, 4)

@@ -24,6 +24,15 @@ export function isBinaryMarket(prop: Prop): boolean {
   return prop.market === "player_anytime_td";
 }
 
+// Mirrors scripts/common.py's pick_units -- profit/loss in units for a
+// flat 1-unit bet at this price, or null if the price is unknown (a pick
+// graded before prices were recorded).
+export function pickUnits(price: number | null, hit: boolean): number | null {
+  if (price === null) return null;
+  if (!hit) return -1;
+  return price > 0 ? price / 100 : 100 / -price;
+}
+
 // Mirrors scripts/common.py's prob_to_american -- the American odds that
 // would exactly imply a given probability with no vig, e.g. 50% -> -100,
 // 40% -> +150. Used to show the model's own probability in odds terms

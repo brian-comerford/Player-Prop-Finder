@@ -21,6 +21,7 @@ from common import (
     american_to_implied_prob,
     game_weights,
     normalize_name,
+    pick_units,
     remove_vig_two_way,
     utcnow_iso,
     weighted_mean_std,
@@ -323,6 +324,10 @@ def snapshot_current_week_picks(props, season, week):
             "model_prob": p["model_prob_over"] if p["recommended_side"] == "over" else p["model_prob_under"],
             "edge": p["recommended_edge"],
             "confidence": p["confidence"],
+            # The recommended side's price at snapshot time, so units won
+            # can later be computed against what was actually offered
+            # rather than an assumed standard vig.
+            "price": p["price_over"] if p["recommended_side"] == "over" else p["price_under"],
         }
         for p in props
     ]
@@ -463,7 +468,20 @@ def build_track_record(market_filter=None):
         if not picks:
             return None
         hits = sum(1 for p in picks if p["hit"])
-        return {"picks": len(picks), "hits": hits, "hit_rate": round(hits / len(picks), 3)}
+        # Picks snapshotted before the price field was added have no odds
+        # to compute units from -- left out of the units total (and its
+        # own count) rather than assumed at some made-up price, so an
+        # early-season total only reflects picks that actually carry a
+        # recorded price.
+        unit_results = [pick_units(p.get("price"), p["hit"]) for p in picks]
+        priced = [u for u in unit_results if u is not None]
+        return {
+            "picks": len(picks),
+            "hits": hits,
+            "hit_rate": round(hits / len(picks), 3),
+            "units": round(sum(priced), 2) if priced else None,
+            "priced_picks": len(priced),
+        }
 
     all_picks = []
     weeks_graded = 0
@@ -535,6 +553,7 @@ def build_track_record_detail(market_filter=None):
                         "actual_value": p["actual_value"],
                         "hit": p["hit"],
                         "margin": p["margin"],
+                        "price": p.get("price"),
                     }
                 )
     picks.sort(key=lambda p: (p["season"], p["week"]), reverse=True)
