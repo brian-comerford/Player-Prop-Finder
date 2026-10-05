@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Confidence, GradedPick, TrackRecord, TrackRecordDetail } from "../lib/types";
 import { formatUnits, pillClass } from "../lib/format";
-import { pickUnits } from "../lib/odds";
+import { sumUnits } from "../lib/odds";
 import { useLockBodyScroll } from "../lib/useLockBodyScroll";
 
 const CONFIDENCE_TIERS: Confidence[] = ["High", "Medium", "Low"];
@@ -12,6 +12,8 @@ interface WeekGroup {
   week: number;
   picks: GradedPick[];
   hits: number;
+  units: number | null;
+  pricedPicks: number;
 }
 
 function pct(hitRate: number): string {
@@ -31,8 +33,8 @@ function actualLabel(p: GradedPick): string {
 // detail.picks arrives sorted most-recent-week-first; grouping preserves
 // that order without re-sorting.
 function groupByWeek(picks: GradedPick[]): WeekGroup[] {
-  const groups: WeekGroup[] = [];
-  const byKey = new Map<string, WeekGroup>();
+  const groups: Array<Omit<WeekGroup, "units" | "pricedPicks">> = [];
+  const byKey = new Map<string, (typeof groups)[number]>();
   for (const p of picks) {
     const key = `${p.season}-${p.week}`;
     let group = byKey.get(key);
@@ -44,7 +46,7 @@ function groupByWeek(picks: GradedPick[]): WeekGroup[] {
     group.picks.push(p);
     if (p.hit) group.hits += 1;
   }
-  return groups;
+  return groups.map((g) => ({ ...g, ...sumUnits(g.picks) }));
 }
 
 export default function TrackRecordSection({
@@ -152,13 +154,11 @@ function TrackRecordPanel({
   const filteredSummary = useMemo(() => {
     const n = filteredPicks.length;
     const hits = filteredPicks.filter((p) => p.hit).length;
-    const unitResults = filteredPicks.map((p) => pickUnits(p.price, p.hit)).filter((u): u is number => u !== null);
     return {
       n,
       hits,
       hitRate: n > 0 ? hits / n : 0,
-      units: unitResults.length > 0 ? unitResults.reduce((a, b) => a + b, 0) : null,
-      pricedPicks: unitResults.length,
+      ...sumUnits(filteredPicks),
     };
   }, [filteredPicks]);
 
@@ -328,6 +328,7 @@ function TrackRecordPanel({
                       </span>
                       <span className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
                         {pct(hitRate)} ({g.hits}/{g.picks.length})
+                        {g.pricedPicks > 0 && <>&nbsp;&middot; {formatUnits(g.units)}</>}
                         <span className="text-xs">{expanded ? "▾" : "▸"}</span>
                       </span>
                     </button>

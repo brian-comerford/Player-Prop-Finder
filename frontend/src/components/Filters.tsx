@@ -4,21 +4,22 @@ import { formatBook, pillClass } from "../lib/format";
 export interface FilterState {
   search: string;
   position: string;
-  market: string;
+  // Which market(s) to show. Empty means "all markets" -- same empty-set-
+  // means-All convention as books/the track record's bet-type filter.
+  markets: Set<string>;
   matchup: string;
   timeSlot: string;
   minEdge: number;
   minConfidence: "Any" | "Medium" | "High";
   // Which book(s) the recommended side's price has to come from. Empty
-  // means "all books" -- same empty-set-means-All convention as the
-  // track record's bet-type filter.
+  // means "all books".
   books: Set<string>;
 }
 
 export const DEFAULT_FILTERS: FilterState = {
   search: "",
   position: "All",
-  market: "All",
+  markets: new Set(),
   matchup: "All",
   timeSlot: "All",
   minEdge: 0.03,
@@ -39,6 +40,13 @@ export default function Filters({
 }) {
   const set = <K extends keyof FilterState>(key: K, value: FilterState[K]) =>
     onChange({ ...filters, [key]: value });
+
+  function toggleMarket(market: string) {
+    const next = new Set(filters.markets);
+    if (next.has(market)) next.delete(market);
+    else next.add(market);
+    set("markets", next);
+  }
 
   function toggleBook(book: string) {
     const next = new Set(filters.books);
@@ -71,22 +79,6 @@ export default function Filters({
             {POSITIONS.map((p) => (
               <option key={p} value={p}>
                 {p}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-slate-500 dark:text-slate-400">Market</span>
-          <select
-            value={filters.market}
-            onChange={(e) => set("market", e.target.value)}
-            className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
-          >
-            <option value="All">All</option>
-            {Object.entries(meta.markets).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
               </option>
             ))}
           </select>
@@ -151,6 +143,31 @@ export default function Filters({
             <option value="High">High only</option>
           </select>
         </label>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-1.5 text-sm">
+        <span className="text-slate-500 dark:text-slate-400">
+          Market{filters.markets.size > 0 && ` (${filters.markets.size} selected)`}
+        </span>
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => set("markets", new Set())}
+            className={pillClass(filters.markets.size === 0)}
+          >
+            All
+          </button>
+          {Object.entries(meta.markets).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => toggleMarket(key)}
+              className={pillClass(filters.markets.has(key))}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {meta.books.length > 0 && (

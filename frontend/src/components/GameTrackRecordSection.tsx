@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Confidence, GameTrackRecordDetail, GradedGamePick, TrackRecord } from "../lib/types";
 import { formatUnits, pillClass } from "../lib/format";
-import { pickUnits } from "../lib/odds";
+import { sumUnits } from "../lib/odds";
 import { useLockBodyScroll } from "../lib/useLockBodyScroll";
 
 const CONFIDENCE_TIERS: Confidence[] = ["High", "Medium", "Low"];
@@ -12,6 +12,8 @@ interface WeekGroup {
   week: number;
   picks: GradedGamePick[];
   hits: number;
+  units: number | null;
+  pricedPicks: number;
 }
 
 function pct(hitRate: number): string {
@@ -23,8 +25,8 @@ function actualLabel(p: GradedGamePick): string {
 }
 
 function groupByWeek(picks: GradedGamePick[]): WeekGroup[] {
-  const groups: WeekGroup[] = [];
-  const byKey = new Map<string, WeekGroup>();
+  const groups: Array<Omit<WeekGroup, "units" | "pricedPicks">> = [];
+  const byKey = new Map<string, (typeof groups)[number]>();
   for (const p of picks) {
     const key = `${p.season}-${p.week}`;
     let group = byKey.get(key);
@@ -36,7 +38,7 @@ function groupByWeek(picks: GradedGamePick[]): WeekGroup[] {
     group.picks.push(p);
     if (p.hit) group.hits += 1;
   }
-  return groups;
+  return groups.map((g) => ({ ...g, ...sumUnits(g.picks) }));
 }
 
 export default function GameTrackRecordSection({
@@ -130,13 +132,11 @@ function GameTrackRecordPanel({
   const filteredSummary = useMemo(() => {
     const n = filteredPicks.length;
     const hits = filteredPicks.filter((p) => p.hit).length;
-    const unitResults = filteredPicks.map((p) => pickUnits(p.price, p.hit)).filter((u): u is number => u !== null);
     return {
       n,
       hits,
       hitRate: n > 0 ? hits / n : 0,
-      units: unitResults.length > 0 ? unitResults.reduce((a, b) => a + b, 0) : null,
-      pricedPicks: unitResults.length,
+      ...sumUnits(filteredPicks),
     };
   }, [filteredPicks]);
 
@@ -306,6 +306,7 @@ function GameTrackRecordPanel({
                       </span>
                       <span className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
                         {pct(hitRate)} ({g.hits}/{g.picks.length})
+                        {g.pricedPicks > 0 && <>&nbsp;&middot; {formatUnits(g.units)}</>}
                         <span className="text-xs">{expanded ? "▾" : "▸"}</span>
                       </span>
                     </button>
