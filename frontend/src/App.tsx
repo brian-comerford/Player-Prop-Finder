@@ -43,7 +43,8 @@ function summarizeFilters(filters: FilterState, meta: Meta): string {
   const parts: string[] = [];
   if (filters.search.trim()) parts.push(`Search: "${filters.search.trim()}"`);
   if (filters.position !== "All") parts.push(`Position: ${filters.position}`);
-  if (filters.market !== "All") parts.push(meta.markets[filters.market] ?? filters.market);
+  if (filters.markets.size > 0)
+    parts.push(Array.from(filters.markets).map((m) => meta.markets[m] ?? m).join("/"));
   if (filters.matchup !== "All") parts.push(filters.matchup);
   if (filters.timeSlot !== "All") parts.push(filters.timeSlot);
   if (filters.minEdge > 0) parts.push(`Min. edge ${(filters.minEdge * 100).toFixed(0)}%+`);
@@ -55,7 +56,8 @@ function summarizeFilters(filters: FilterState, meta: Meta): string {
 function summarizeGameFilters(filters: GameFilterState, meta: GameMeta): string {
   const parts: string[] = [];
   if (filters.segment !== "All") parts.push(meta.segments[filters.segment] ?? filters.segment);
-  if (filters.market !== "All") parts.push(filters.market === "spread" ? "Spread" : "Total");
+  if (filters.markets.size > 0)
+    parts.push(Array.from(filters.markets).map((m) => (m === "spread" ? "Spread" : "Total")).join("/"));
   if (filters.matchup !== "All") parts.push(filters.matchup);
   if (filters.minEdge > 0) parts.push(`Min. edge ${(filters.minEdge * 100).toFixed(0)}%+`);
   if (filters.minConfidence !== "Any") parts.push(`${filters.minConfidence}+ confidence`);
@@ -133,7 +135,7 @@ export default function App() {
     return props
       .filter((p) => (search ? p.player_name.toLowerCase().includes(search) : true))
       .filter((p) => (filters.position === "All" ? true : p.position === filters.position))
-      .filter((p) => (filters.market === "All" ? true : p.market === filters.market))
+      .filter((p) => filters.markets.size === 0 || filters.markets.has(p.market))
       .filter((p) => (filters.matchup === "All" ? true : p.matchup === filters.matchup))
       .filter((p) => (filters.timeSlot === "All" ? true : p.time_slot === filters.timeSlot))
       .filter((p) => (sideEdge(p, p.recommended_side) ?? 0) >= filters.minEdge)
@@ -149,7 +151,7 @@ export default function App() {
     return tdProps
       .filter((p) => (search ? p.player_name.toLowerCase().includes(search) : true))
       .filter((p) => (tdFilters.position === "All" ? true : p.position === tdFilters.position))
-      .filter((p) => (tdFilters.market === "All" ? true : p.market === tdFilters.market))
+      .filter((p) => tdFilters.markets.size === 0 || tdFilters.markets.has(p.market))
       .filter((p) => (tdFilters.matchup === "All" ? true : p.matchup === tdFilters.matchup))
       .filter((p) => (tdFilters.timeSlot === "All" ? true : p.time_slot === tdFilters.timeSlot))
       .filter((p) => (sideEdge(p, p.recommended_side) ?? 0) >= tdFilters.minEdge)
@@ -168,7 +170,7 @@ export default function App() {
     const minConfidenceRank = CONFIDENCE_RANK[gameFilters.minConfidence] ?? 0;
     return gameProps
       .filter((p) => (gameFilters.segment === "All" ? true : p.segment === gameFilters.segment))
-      .filter((p) => (gameFilters.market === "All" ? true : p.market === gameFilters.market))
+      .filter((p) => gameFilters.markets.size === 0 || gameFilters.markets.has(p.market))
       .filter((p) => (gameFilters.matchup === "All" ? true : p.matchup === gameFilters.matchup))
       .filter((p) => (sideEdgeGame(p, p.recommended_side) ?? 0) >= gameFilters.minEdge)
       .filter((p) => CONFIDENCE_RANK[p.confidence] >= minConfidenceRank)

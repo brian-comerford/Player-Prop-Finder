@@ -1,9 +1,16 @@
 import type { GameMeta } from "../lib/types";
 import { formatBook, pillClass } from "../lib/format";
 
+const MARKET_OPTIONS: Array<{ key: "spread" | "total"; label: string }> = [
+  { key: "spread", label: "Spread" },
+  { key: "total", label: "Total" },
+];
+
 export interface GameFilterState {
   segment: "All" | "full" | "h1" | "h2";
-  market: "All" | "spread" | "total";
+  // Which market(s) to show. Empty means "all markets", same convention
+  // as Filters.tsx.
+  markets: Set<"spread" | "total">;
   matchup: string;
   minEdge: number;
   minConfidence: "Any" | "Medium" | "High";
@@ -14,7 +21,7 @@ export interface GameFilterState {
 
 export const DEFAULT_GAME_FILTERS: GameFilterState = {
   segment: "All",
-  market: "All",
+  markets: new Set(),
   matchup: "All",
   minEdge: 0.03,
   minConfidence: "Any",
@@ -34,6 +41,13 @@ export default function GameFilters({
 }) {
   const set = <K extends keyof GameFilterState>(key: K, value: GameFilterState[K]) =>
     onChange({ ...filters, [key]: value });
+
+  function toggleMarket(market: "spread" | "total") {
+    const next = new Set(filters.markets);
+    if (next.has(market)) next.delete(market);
+    else next.add(market);
+    set("markets", next);
+  }
 
   function toggleBook(book: string) {
     const next = new Set(filters.books);
@@ -58,19 +72,6 @@ export default function GameFilters({
                 {label}
               </option>
             ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-slate-500 dark:text-slate-400">Market</span>
-          <select
-            value={filters.market}
-            onChange={(e) => set("market", e.target.value as GameFilterState["market"])}
-            className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
-          >
-            <option value="All">All</option>
-            <option value="spread">Spread</option>
-            <option value="total">Total</option>
           </select>
         </label>
 
@@ -117,6 +118,31 @@ export default function GameFilters({
             <option value="High">High only</option>
           </select>
         </label>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-1.5 text-sm">
+        <span className="text-slate-500 dark:text-slate-400">
+          Market{filters.markets.size > 0 && ` (${filters.markets.size} selected)`}
+        </span>
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => set("markets", new Set())}
+            className={pillClass(filters.markets.size === 0)}
+          >
+            All
+          </button>
+          {MARKET_OPTIONS.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => toggleMarket(key)}
+              className={pillClass(filters.markets.has(key))}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {meta.books.length > 0 && (
