@@ -33,6 +33,20 @@ export function pickUnits(price: number | null, hit: boolean): number | null {
   return price > 0 ? price / 100 : 100 / -price;
 }
 
+// Total units won across a set of graded picks (player or game), plus how
+// many of them actually had a recorded price -- units stays null when
+// none do, rather than reporting a misleading 0, same convention as the
+// server-side HitRateSummary.
+export function sumUnits<T extends { price: number | null; hit: boolean }>(
+  picks: T[]
+): { units: number | null; pricedPicks: number } {
+  const results = picks.map((p) => pickUnits(p.price, p.hit)).filter((u): u is number => u !== null);
+  return {
+    units: results.length > 0 ? results.reduce((a, b) => a + b, 0) : null,
+    pricedPicks: results.length,
+  };
+}
+
 // Mirrors scripts/common.py's prob_to_american -- the American odds that
 // would exactly imply a given probability with no vig, e.g. 50% -> -100,
 // 40% -> +150. Used to show the model's own probability in odds terms
