@@ -241,13 +241,13 @@ function TrackRecordPanel({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="flex flex-col gap-1 text-sm">
                   <span className="text-slate-500 dark:text-slate-400">
-                    Min. edge: {(minEdge * 100).toFixed(0)}%
+                    Min. edge: {(minEdge * 100).toFixed(1)}%
                   </span>
                   <input
                     type="range"
                     min={0}
-                    max={0.25}
-                    step={0.01}
+                    max={0.1}
+                    step={0.005}
                     value={minEdge}
                     onChange={(e) => setMinEdge(Number(e.target.value))}
                     className="mt-2"

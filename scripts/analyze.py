@@ -36,13 +36,15 @@ TD_PROB_BOUNDS = (0.02, 0.95)
 # no-vig price (the rest). The raw model is badly overconfident on its own
 # -- picks it called 90%+ hit ~66% -- while the market already prices in
 # injuries, role changes and matchups the model can't see. Fit by log loss
-# on 1,484 graded 2026 wk3-4 picks: 20/80 beat both the model alone and
-# the market alone, and held up fitting on one week and scoring the other
-# (best weight 0.15-0.25 either way). Anytime TD wanted even less model
-# weight. Refit as more weeks are graded -- snapshots keep raw_model_prob
-# for exactly that.
-MODEL_WEIGHT = 0.20
-MODEL_WEIGHT_ANYTIME_TD = 0.10
+# on 1,484 graded 2026 wk3-4 picks, the best weight was 0.20 (0.15-0.25
+# out of sample), but that made edges small enough to feel like the model
+# had no opinion. 0.40 is a deliberate middle ground: about the largest
+# weight that still scored as well as the market alone (log loss 0.681 vs
+# 0.682; 0.20 scored 0.677, the raw model 0.801). Anytime TD fit best
+# lower (0.10), so it gets half the main weight. Refit as more weeks are
+# graded -- snapshots keep raw_model_prob for exactly that.
+MODEL_WEIGHT = 0.40
+MODEL_WEIGHT_ANYTIME_TD = 0.20
 
 TREND_WINDOW = 10
 TREND_MIN_GAMES = 4
@@ -536,15 +538,16 @@ def build_track_record(market_filter=None):
 
 
 def comparable_edge(pick):
-    """A graded pick's edge on the blended (MODEL_WEIGHT) scale. Picks
-    snapshotted before the market blend existed carry the raw model's
-    edge; blending scales the model-minus-market gap by exactly the
-    model weight, so this rescales those to match newer picks and keeps
-    the track record's Min. edge filter on one scale."""
-    if "raw_model_prob" in pick:
-        return pick["edge"]
+    """A graded pick's edge recomputed at the current MODEL_WEIGHT, so the
+    track record's Min. edge filter stays on one scale no matter which
+    weight (or no blend at all) was live when the pick was snapshotted.
+    The market's probability is model_prob - edge either way; picks from
+    before the blend have no raw_model_prob, but their model_prob was the
+    raw model's."""
     weight = MODEL_WEIGHT_ANYTIME_TD if MARKETS[pick["market"]].get("binary") else MODEL_WEIGHT
-    return round(pick["edge"] * weight, 4)
+    market_prob = pick["model_prob"] - pick["edge"]
+    raw_prob = pick.get("raw_model_prob", pick["model_prob"])
+    return round(weight * (raw_prob - market_prob), 4)
 
 
 def build_track_record_detail(market_filter=None):

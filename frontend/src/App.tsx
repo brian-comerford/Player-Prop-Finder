@@ -47,7 +47,7 @@ function summarizeFilters(filters: FilterState, meta: Meta): string {
     parts.push(Array.from(filters.markets).map((m) => meta.markets[m] ?? m).join("/"));
   if (filters.matchup !== "All") parts.push(filters.matchup);
   if (filters.timeSlot !== "All") parts.push(filters.timeSlot);
-  if (filters.minEdge > 0) parts.push(`Min. edge ${(filters.minEdge * 100).toFixed(0)}%+`);
+  if (filters.minEdge > 0) parts.push(`Min. edge ${(filters.minEdge * 100).toFixed(1)}%+`);
   if (filters.minConfidence !== "Any") parts.push(`${filters.minConfidence}+ confidence`);
   if (filters.books.size > 0) parts.push(Array.from(filters.books).map(formatBook).join("/"));
   return parts.length ? parts.join(" · ") : "No filters applied";
@@ -59,7 +59,7 @@ function summarizeGameFilters(filters: GameFilterState, meta: GameMeta): string 
   if (filters.markets.size > 0)
     parts.push(Array.from(filters.markets).map((m) => (m === "spread" ? "Spread" : "Total")).join("/"));
   if (filters.matchup !== "All") parts.push(filters.matchup);
-  if (filters.minEdge > 0) parts.push(`Min. edge ${(filters.minEdge * 100).toFixed(0)}%+`);
+  if (filters.minEdge > 0) parts.push(`Min. edge ${(filters.minEdge * 100).toFixed(1)}%+`);
   if (filters.minConfidence !== "Any") parts.push(`${filters.minConfidence}+ confidence`);
   if (filters.books.size > 0) parts.push(Array.from(filters.books).map(formatBook).join("/"));
   return parts.length ? parts.join(" · ") : "No filters applied";

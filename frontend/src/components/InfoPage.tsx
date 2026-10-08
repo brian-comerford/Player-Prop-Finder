@@ -125,11 +125,12 @@ export default function InfoPage({
             The model's estimated probability that the picked side happens. It starts from a
             projection built on the player's recent performance and an opponent-strength
             adjustment, then gets blended with the sportsbook's own no-vig probability
-            (roughly 20% model, 80% market; 10% model for Anytime TD). On its own the projection
-            was badly overconfident &mdash; picks it called 90%+ likely actually hit about 66% of
-            the time &mdash; because the market already prices in things the model can't see,
-            like injuries, role changes and game plans. The blend was fit on past graded picks,
-            and it predicted outcomes better than either the model or the market alone. The
+            (40% model, 60% market; 20% model for Anytime TD). On its own the projection was
+            badly overconfident &mdash; picks it called 90%+ likely actually hit about 66% of the
+            time &mdash; because the market already prices in things the model can't see, like
+            injuries, role changes and game plans. Tested against past graded picks, this blend
+            predicts outcomes about as well as the market itself while still leaving room for the
+            model to disagree with it. The
             number in parentheses (e.g. "50.0% (-100)") is that same probability converted to
             the American odds it would imply with no vig &mdash; not a real price from any book,
             just a way to compare the model's view against the book's price in the same units.
