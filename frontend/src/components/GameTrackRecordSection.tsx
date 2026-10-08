@@ -278,6 +278,8 @@ function GameTrackRecordPanel({
                       <>
                         {" · "}
                         <strong>{formatUnits(filteredSummary.units)}</strong>
+                        {filteredSummary.pricedPicks < filteredSummary.n &&
+                          ` (${filteredSummary.pricedPicks}/${filteredSummary.n} priced)`}
                       </>
                     )}
                   </>
@@ -306,7 +308,12 @@ function GameTrackRecordPanel({
                       </span>
                       <span className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
                         {pct(hitRate)} ({g.hits}/{g.picks.length})
-                        {g.pricedPicks > 0 && <>&nbsp;&middot; {formatUnits(g.units)}</>}
+                        {g.pricedPicks > 0 && (
+                          <>
+                            &nbsp;&middot; {formatUnits(g.units)}
+                            {g.pricedPicks < g.picks.length && ` (${g.pricedPicks}/${g.picks.length} priced)`}
+                          </>
+                        )}
                         <span className="text-xs">{expanded ? "▾" : "▸"}</span>
                       </span>
                     </button>

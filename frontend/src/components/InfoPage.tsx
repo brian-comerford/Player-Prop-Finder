@@ -122,10 +122,16 @@ export default function InfoPage({
             win $100; positive numbers (e.g. +130) show how much a $100 stake would win.
           </Term>
           <Term term="Model %">
-            The model's estimated probability that the picked side happens, based on the
-            player's recent performance and an opponent-strength adjustment. The number in
-            parentheses (e.g. "50.0% (-100)") is that same probability converted to the
-            American odds it would imply with no vig &mdash; not a real price from any book,
+            The model's estimated probability that the picked side happens. It starts from a
+            projection built on the player's recent performance and an opponent-strength
+            adjustment, then gets blended with the sportsbook's own no-vig probability
+            (roughly 20% model, 80% market; 10% model for Anytime TD). On its own the projection
+            was badly overconfident &mdash; picks it called 90%+ likely actually hit about 66% of
+            the time &mdash; because the market already prices in things the model can't see,
+            like injuries, role changes and game plans. The blend was fit on past graded picks,
+            and it predicted outcomes better than either the model or the market alone. The
+            number in parentheses (e.g. "50.0% (-100)") is that same probability converted to
+            the American odds it would imply with no vig &mdash; not a real price from any book,
             just a way to compare the model's view against the book's price in the same units.
           </Term>
           <Term term="Book %">
@@ -133,10 +139,12 @@ export default function InfoPage({
             (the built-in house edge baked into both sides of a line) &mdash; see below.
           </Term>
           <Term term="Edge">
-            Model % minus Book %. A +15% edge means the model thinks that outcome is 15
-            percentage points more likely than the sportsbook's price suggests. Bigger isn't
-            automatically better &mdash; a huge edge on a thin sample is a red flag, not a lock
-            (see Confidence).
+            Model % minus Book %. A +5% edge means the model thinks that outcome is 5
+            percentage points more likely than the sportsbook's price suggests. Because Model %
+            is mostly the market's own number, edges here are deliberately modest &mdash; a
+            single-digit edge is a real disagreement with the book, not a small one. Bigger
+            still isn't automatically better: a big edge on a thin sample is a red flag, not a
+            lock (see Confidence).
           </Term>
           <Term term={'Confidence & the game count (e.g. "7g")'}>
             How much the model trusts its own projection, based on how many recent games it
@@ -268,8 +276,9 @@ export default function InfoPage({
           pulled from further back than one prior season.
         </p>
         <p>
-          As with player props, Model % is this projection converted to a win probability for
-          each side of the spread or total, Book % is the sportsbook's no-vig implied
+          Model % is this projection converted to a win probability for each side of the
+          spread or total (not yet blended with the market the way player props are), Book %
+          is the sportsbook's no-vig implied
           probability, and Edge is the difference between the two. Confidence works a bit
           differently here: rather than a fixed bar every bet either clears or doesn't, each
           suggested bet is scored on how long a track record both teams have and how consistent
@@ -316,7 +325,7 @@ export default function InfoPage({
           close they came (e.g. a pick needing Over 65.5 that the player finished at 63 missed
           by 2.5). A Min. edge slider, Confidence filter, and Bet type filter above the list
           narrow it down to a specific slice, e.g. only High-confidence Receiving Yards picks
-          above 15% edge, with the hit rate for just that filtered set shown above the results.
+          above 5% edge, with the hit rate for just that filtered set shown above the results.
           Bet type supports picking several markets at once (e.g. Receiving Yards and Rush +
           Rec Yards together) by tapping each one &mdash; tap "All" to clear back to every
           market.

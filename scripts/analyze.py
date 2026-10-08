@@ -32,6 +32,18 @@ DEFENSE_FACTOR_BOUNDS = (0.75, 1.25)
 MIN_ROWS_FOR_POSITION_FACTOR = 8
 TD_PROB_BOUNDS = (0.02, 0.95)
 
+# How much the final probability trusts the stat model vs the market's
+# no-vig price (the rest). The raw model is badly overconfident on its own
+# -- picks it called 90%+ hit ~66% -- while the market already prices in
+# injuries, role changes and matchups the model can't see. Fit by log loss
+# on 1,484 graded 2026 wk3-4 picks: 20/80 beat both the model alone and
+# the market alone, and held up fitting on one week and scoring the other
+# (best weight 0.15-0.25 either way). Anytime TD wanted even less model
+# weight. Refit as more weeks are graded -- snapshots keep raw_model_prob
+# for exactly that.
+MODEL_WEIGHT = 0.20
+MODEL_WEIGHT_ANYTIME_TD = 0.10
+
 TREND_WINDOW = 10
 TREND_MIN_GAMES = 4
 TREND_MIN_HIT_RATE = 0.7
@@ -322,6 +334,11 @@ def snapshot_current_week_picks(props, season, week):
             "line": p["line"],
             "side": p["recommended_side"],
             "model_prob": p["model_prob_over"] if p["recommended_side"] == "over" else p["model_prob_under"],
+            # Pre-blend, so MODEL_WEIGHT can be refit against outcomes later
+            # (the market's probability is model_prob - edge).
+            "raw_model_prob": (
+                p["raw_model_prob_over"] if p["recommended_side"] == "over" else p["raw_model_prob_under"]
+            ),
             "edge": p["recommended_edge"],
             "confidence": p["confidence"],
             # The recommended side's price at snapshot time, so units won
@@ -518,6 +535,18 @@ def build_track_record(market_filter=None):
     }
 
 
+def comparable_edge(pick):
+    """A graded pick's edge on the blended (MODEL_WEIGHT) scale. Picks
+    snapshotted before the market blend existed carry the raw model's
+    edge; blending scales the model-minus-market gap by exactly the
+    model weight, so this rescales those to match newer picks and keeps
+    the track record's Min. edge filter on one scale."""
+    if "raw_model_prob" in pick:
+        return pick["edge"]
+    weight = MODEL_WEIGHT_ANYTIME_TD if MARKETS[pick["market"]].get("binary") else MODEL_WEIGHT
+    return round(pick["edge"] * weight, 4)
+
+
 def build_track_record_detail(market_filter=None):
     """Every graded pick, with enough detail to show which ones hit and how
     close the misses were (see the `margin` field grade_past_weeks writes).
@@ -549,7 +578,7 @@ def build_track_record_detail(market_filter=None):
                         "line": p["line"],
                         "side": p["side"],
                         "confidence": p["confidence"],
-                        "edge": p["edge"],
+                        "edge": comparable_edge(p),
                         "actual_value": p["actual_value"],
                         "hit": p["hit"],
                         "margin": p["margin"],
@@ -743,6 +772,15 @@ def project_probabilities(mean, std, line, binary=False):
     return p_over, 1 - p_over
 
 
+def blend_with_market(model_prob, market_prob, model_weight):
+    """Shrinks the model's probability toward the market's no-vig one (see
+    MODEL_WEIGHT). A side with no market price is left as the raw model
+    value -- it has no edge either way, so it's never recommended."""
+    if market_prob is None:
+        return model_prob
+    return model_weight * model_prob + (1 - model_weight) * market_prob
+
+
 def main():
     stats_df = pd.read_csv(os.path.join(DATA_DIR, "player_stats_recent.csv"), low_memory=False)
     with open(os.path.join(DATA_DIR, "season_week.json")) as f:
@@ -857,7 +895,7 @@ def main():
         factor = defense_factor_for(defense_factors, q["market"], base["position"], opponent)
         projected_mean = base["mean"] * factor
 
-        model_over, model_under = project_probabilities(
+        raw_model_over, raw_model_under = project_probabilities(
             projected_mean, base["std"], q["point"], binary=cfg.get("binary", False)
         )
 
@@ -867,6 +905,10 @@ def main():
             novig_over, novig_under = remove_vig_two_way(raw_over, raw_under)
         else:
             novig_over, novig_under = raw_over, raw_under
+
+        model_weight = MODEL_WEIGHT_ANYTIME_TD if cfg.get("binary") else MODEL_WEIGHT
+        model_over = blend_with_market(raw_model_over, novig_over, model_weight)
+        model_under = blend_with_market(raw_model_under, novig_under, model_weight)
 
         edge_over = (model_over - novig_over) if novig_over is not None else None
         edge_under = (model_under - novig_under) if novig_under is not None else None
@@ -922,6 +964,8 @@ def main():
                 "price_under": q["price_under"],
                 "model_prob_over": round(model_over, 4),
                 "model_prob_under": round(model_under, 4),
+                "raw_model_prob_over": round(raw_model_over, 4),
+                "raw_model_prob_under": round(raw_model_under, 4),
                 "implied_prob_over": round(novig_over, 4) if novig_over is not None else None,
                 "implied_prob_under": round(novig_under, 4) if novig_under is not None else None,
                 "edge_over": round(edge_over, 4) if edge_over is not None else None,
