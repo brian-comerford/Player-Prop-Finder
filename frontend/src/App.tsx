@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toBlob } from "html-to-image";
 import Banner from "./components/Banner";
-import Filters, { DEFAULT_FILTERS, type FilterState } from "./components/Filters";
+import Filters, { DEFAULT_FILTERS, DEFAULT_TD_FILTERS, type FilterState } from "./components/Filters";
 import PropsTable from "./components/PropsTable";
 import PropDetail from "./components/PropDetail";
 import GameFilters, { DEFAULT_GAME_FILTERS, type GameFilterState } from "./components/GameFilters";
@@ -79,7 +79,7 @@ export default function App() {
   const [gameError, setGameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [tdFilters, setTdFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [tdFilters, setTdFilters] = useState<FilterState>(DEFAULT_TD_FILTERS);
   const [gameFilters, setGameFilters] = useState<GameFilterState>(DEFAULT_GAME_FILTERS);
   const [selected, setSelected] = useState<Prop | null>(null);
   const [selectedGame, setSelectedGame] = useState<GameProp | null>(null);

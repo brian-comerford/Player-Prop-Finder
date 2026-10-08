@@ -22,10 +22,16 @@ export const DEFAULT_FILTERS: FilterState = {
   markets: new Set(),
   matchup: "All",
   timeSlot: "All",
-  minEdge: 0.03,
+  // On graded history, blended edges under 4% showed no real edge over
+  // the market; 4%+ beat it by 8-11 points.
+  minEdge: 0.04,
   minConfidence: "Any",
   books: new Set(),
 };
+
+// Anytime TD uses a smaller model weight (10%), so its blended edges run
+// smaller -- a 4% floor would hide nearly the whole tab.
+export const DEFAULT_TD_FILTERS: FilterState = { ...DEFAULT_FILTERS, minEdge: 0.03 };
 
 const POSITIONS = ["All", "QB", "RB", "WR", "TE"];
 
