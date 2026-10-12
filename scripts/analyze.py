@@ -549,7 +549,10 @@ def build_track_record(market_filter=None):
                 continue
             with open(os.path.join(HISTORY_DIR, fname)) as f:
                 data = json.load(f)
-            picks = [p for p in data["picks"] if market_filter(p)] if market_filter else data["picks"]
+            shown = [p for p in data["picks"] if not p.get("backfilled")]
+            if data["picks"] and not shown:
+                continue  # a reconstructed week (see backfill_history.py), never shown live
+            picks = [p for p in shown if market_filter(p)] if market_filter else shown
             # A week's picks count toward the hit rate the moment their
             # own game is graded, even before the rest of that week's
             # games are final -- only the "N graded weeks" figure below
@@ -605,7 +608,7 @@ def build_track_record_detail(market_filter=None):
             with open(os.path.join(HISTORY_DIR, fname)) as f:
                 data = json.load(f)
             for p in data["picks"]:
-                if market_filter and not market_filter(p):
+                if p.get("backfilled") or (market_filter and not market_filter(p)):
                     continue
                 picks.append(
                     {
