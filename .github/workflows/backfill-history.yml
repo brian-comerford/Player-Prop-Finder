@@ -11,13 +11,13 @@ on:
         required: true
         default: "2026"
       full_weeks:
-        description: Weeks to rebuild picks for (comma-separated)
+        description: Weeks to rebuild picks for, comma-separated (blank = none)
         required: false
-        default: "1,2"
+        default: ""
       price_weeks:
-        description: Weeks to fill missing prices for (comma-separated)
+        description: Weeks to fill missing prices for, comma-separated (blank = none)
         required: false
-        default: "3,4"
+        default: ""
       credit_floor:
         description: Stop once remaining Odds API credits fall below this
         required: true
@@ -68,13 +68,18 @@ jobs:
           ${{ inputs.dry_run && '--dry-run' || '' }}
 
       # Credits are already spent by this point, so keep a copy of the
-      # results even if the push below fails.
-      - name: Save history as an artifact
-        if: ${{ !inputs.dry_run }}
+      # fetched odds and results even if the backfill or the push fails.
+      # (Blank week inputs default to blank on purpose: GitHub swaps an
+      # empty input for its default, so a non-blank default couldn't be
+      # turned off.)
+      - name: Save fetched odds and history as an artifact
+        if: ${{ always() && !inputs.dry_run }}
         uses: actions/upload-artifact@v4
         with:
           name: backfilled-history
-          path: data/history
+          path: |
+            data/backfill_quotes
+            data/history
 
       - name: Commit backfilled history
         if: ${{ !inputs.dry_run }}

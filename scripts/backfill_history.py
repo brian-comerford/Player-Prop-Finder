@@ -17,8 +17,11 @@ before its kickoff:
 
 Historical requests cost 10x normal (about 100 credits per game here), so
 the script stops once the account's remaining credits fall below
---credit-floor, and only writes a full week if every one of its games was
-fetched. --dry-run lists what would be fetched without calling the API.
+--credit-floor. A game missing from the historical data is skipped (a
+rebuilt week is written with whatever games were found), and fetched odds
+are saved to data/backfill_quotes/ after every game so a crash doesn't
+waste credits already spent. --dry-run lists what would be fetched
+without calling the API.
 
 Run from scripts/ after fetch_stats.py (needs data/player_stats_recent.csv
 and data/games_recent.csv); see .github/workflows/backfill-history.yml.
@@ -39,6 +42,7 @@ from common import DATA_DIR, MARKETS, TEAM_CODE_TO_NAME, normalize_name, utcnow_
 from fetch_odds import BOOKMAKERS, ODDS_API_BASE, ODDS_FORMAT, SPORT_KEY, _parse_event_odds
 
 HISTORY_DIR = os.path.join(DATA_DIR, "history")
+QUOTES_DIR = os.path.join(DATA_DIR, "backfill_quotes")
 EASTERN = ZoneInfo("America/New_York")
 SNAPSHOT_LEAD = timedelta(hours=1)
 EST_CREDITS_PER_GAME = 10 * len(MARKETS)
@@ -81,29 +85,60 @@ def api_get(path, params, api_key, credit_floor):
     return payload.get("data", payload)
 
 
-def fetch_week_quotes(slate, api_key, credit_floor, for_prices):
-    """{(home, away): [quotes]} for every game in `slate`."""
-    first_kickoff = min(kickoff_utc(g) for g in slate.itertuples())
-    events = api_get(
-        f"/historical/sports/{SPORT_KEY}/events", {"date": iso(first_kickoff - timedelta(days=1))}, api_key, credit_floor
-    )
-    event_ids = {frozenset((e["home_team"], e["away_team"])): e["id"] for e in events}
-    quotes = {}
-    for g in slate.itertuples():
-        key = frozenset((TEAM_CODE_TO_NAME.get(g.home_team), TEAM_CODE_TO_NAME.get(g.away_team)))
-        event_id = event_ids.get(key)
-        if event_id is None:
-            print(f"  {g.away_team} @ {g.home_team}: no historical event found, skipping")
-            continue
-        snapshot = iso(snapshot_time(g, for_prices))
-        print(f"  {g.away_team} @ {g.home_team} at {snapshot}")
-        data = api_get(
+def event_ids_at(date, api_key, credit_floor):
+    events = api_get(f"/historical/sports/{SPORT_KEY}/events", {"date": date}, api_key, credit_floor)
+    return {frozenset((e["home_team"], e["away_team"])): e["id"] for e in events}
+
+
+def event_odds(event_id, snapshot, api_key, credit_floor):
+    """The event's odds payload, or None if that event ID isn't found at
+    that time -- IDs can change when a game is rescheduled."""
+    try:
+        return api_get(
             f"/historical/sports/{SPORT_KEY}/events/{event_id}/odds",
             {"date": snapshot, "bookmakers": BOOKMAKERS, "markets": ",".join(MARKETS), "oddsFormat": ODDS_FORMAT},
             api_key,
             credit_floor,
         )
-        quotes[(g.home_team, g.away_team)] = _parse_event_odds(data)
+    except requests.HTTPError as exc:
+        if exc.response is not None and exc.response.status_code == 404:
+            return None
+        raise
+
+
+def fetch_week_quotes(season, week, slate, api_key, credit_floor, for_prices):
+    """{"AWAY@HOME": [quotes]} for the games in `slate` that could be
+    fetched. Saved to QUOTES_DIR after every game, and reused on a rerun,
+    so credits already spent survive a crash."""
+    os.makedirs(QUOTES_DIR, exist_ok=True)
+    cache_path = os.path.join(QUOTES_DIR, f"{season}_wk{week}.json")
+    quotes = {}
+    if os.path.exists(cache_path):
+        with open(cache_path) as f:
+            quotes = json.load(f)
+    todo = [g for g in slate.itertuples() if f"{g.away_team}@{g.home_team}" not in quotes]
+    if not todo:
+        return quotes
+    first_kickoff = min(kickoff_utc(g) for g in todo)
+    event_ids = event_ids_at(iso(first_kickoff - timedelta(days=1)), api_key, credit_floor)
+    for g in todo:
+        name = f"{g.away_team}@{g.home_team}"
+        key = frozenset((TEAM_CODE_TO_NAME.get(g.home_team), TEAM_CODE_TO_NAME.get(g.away_team)))
+        snapshot = iso(snapshot_time(g, for_prices))
+        print(f"  {name} at {snapshot}")
+        event_id = event_ids.get(key)
+        data = event_odds(event_id, snapshot, api_key, credit_floor) if event_id else None
+        if data is None:
+            fresh_id = event_ids_at(snapshot, api_key, credit_floor).get(key)
+            if fresh_id and fresh_id != event_id:
+                print(f"    retrying under event id as of {snapshot}")
+                data = event_odds(fresh_id, snapshot, api_key, credit_floor)
+        if data is None:
+            print("    not found in the historical data, skipping")
+            continue
+        quotes[name] = _parse_event_odds(data)
+        with open(cache_path, "w") as f:
+            json.dump(quotes, f)
     return quotes
 
 
@@ -214,15 +249,20 @@ def main():
     api_key = os.environ["ODDS_API_KEY"]
     for week, slate in plan:
         print(f"\nwk{week}: fetching {len(slate)} games")
+        stopping = False
         try:
-            quotes = fetch_week_quotes(slate, api_key, args.credit_floor, for_prices=week not in full_weeks)
+            quotes = fetch_week_quotes(args.season, week, slate, api_key, args.credit_floor, week not in full_weeks)
         except OutOfCredits as exc:
-            print(f"Stopping: {exc}. wk{week} left unchanged.")
-            break
-        if week in full_weeks:
-            if len(quotes) < len(slate):
-                print(f"  only {len(quotes)} of {len(slate)} games found; not writing a partial week")
-                continue
+            print(f"Stopping after this week: {exc}")
+            stopping = True
+            cache_path = os.path.join(QUOTES_DIR, f"{args.season}_wk{week}.json")
+            quotes = json.load(open(cache_path)) if os.path.exists(cache_path) else {}
+        print(f"  have odds for {len(quotes)} of {len(slate)} games")
+        if not quotes:
+            pass
+        elif week in full_weeks:
+            # A partial week is still useful training data, and these
+            # picks never appear in the public track record anyway.
             snapshot = rebuild_week(args.season, week, [q for qs in quotes.values() for q in qs], stats_df, games_path)
             with open(os.path.join(HISTORY_DIR, f"picks_{args.season}_wk{week}.json"), "w") as f:
                 json.dump(snapshot, f)
@@ -230,6 +270,8 @@ def main():
         else:
             for prefix in ("picks", "results"):
                 fill_prices(os.path.join(HISTORY_DIR, f"{prefix}_{args.season}_wk{week}.json"), quotes)
+        if stopping:
+            break
 
 
 if __name__ == "__main__":
