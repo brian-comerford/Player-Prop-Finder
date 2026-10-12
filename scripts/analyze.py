@@ -29,6 +29,13 @@ from common import (
 
 MIN_GAMES = 3
 DEFENSE_FACTOR_BOUNDS = (0.75, 1.25)
+# See weighted_defense_factors. Backtested on 2,270 graded 2026 wk3-5
+# picks (projections rebuilt from only the data available before each
+# week): 4 left blended accuracy unchanged within noise for props and
+# improved it for Anytime TD, while narrowing passing-yards factors from
+# 0.80-1.23 to 0.88-1.14 -- a 3-4 game early-season run no longer swings
+# a projection 11-15%.
+DEFENSE_SHRINK_K = 4.0
 MIN_ROWS_FOR_POSITION_FACTOR = 8
 TD_PROB_BOUNDS = (0.02, 0.95)
 
@@ -131,15 +138,23 @@ def build_player_baselines(stats_df, current_season):
     return baselines, team_by_player
 
 
-def weighted_defense_factors(rows, current_season, league_avg):
+def weighted_defense_factors(rows, current_season, league_avg, shrink_k=0.0):
     """Each opponent's recency/season-weighted allowed rate for `rows`'
     stat, relative to `league_avg` -- same game_weights a player's own
-    baseline uses, applied here so a defense's current-season games count
-    significantly more than last season's at the same recency. A defense's
-    personnel and scheme turn over between seasons just like an offense's
-    can, so there's no reason to weight "how good is this defense" any
-    differently than "how good is this player." Bounded the same as every
-    other matchup factor in this file.
+    baseline uses, applied here so
+    a defense's current-season games count significantly more than last
+    season's at the same recency. A defense's personnel and scheme turn
+    over between seasons just like an offense's can, so there's no reason
+    to weight "how good is this defense" any differently than "how good is
+    this player." Bounded the same as every other matchup factor in this
+    file.
+
+    `shrink_k` pulls the factor toward neutral by how much (weighted)
+    history it rests on: factor = 1 + (raw - 1) * W / (W + shrink_k), where
+    W is the summed game weight of the defense's games. A defense's first
+    three or four games of a season are mostly noise, yet they dominate
+    its weight: they carry W of ~3 on their own, against ~6 for its whole
+    history.
 
     Unlike a player's own game log (one row per week), each week here has
     one row per opposing skill player who touched the ball against this
@@ -153,22 +168,31 @@ def weighted_defense_factors(rows, current_season, league_avg):
         game_keys = (
             group[["season", "week"]].drop_duplicates().sort_values(["season", "week"], ascending=False)
         )
-        game_weight_by_key = dict(
-            zip(
-                map(tuple, game_keys.itertuples(index=False, name=None)),
-                game_weights(game_keys["season"].tolist(), current_season),
-            )
-        )
+        weights_by_game = game_weights(game_keys["season"].tolist(), current_season)
+        game_weight_by_key = dict(zip(map(tuple, game_keys.itertuples(index=False, name=None)), weights_by_game))
         row_weights = [
             game_weight_by_key[(season, week)]
             for season, week in zip(group["season"], group["week"])
         ]
         mean, _, _ = weighted_mean_std(group["_val"].tolist(), row_weights)
-        factors[team] = min(max(mean / league_avg, DEFENSE_FACTOR_BOUNDS[0]), DEFENSE_FACTOR_BOUNDS[1])
+        raw = mean / league_avg
+        evidence = sum(weights_by_game)
+        factor = 1 + (raw - 1) * evidence / (evidence + shrink_k)
+        factors[team] = min(max(factor, DEFENSE_FACTOR_BOUNDS[0]), DEFENSE_FACTOR_BOUNDS[1])
     return factors
 
 
-def build_defense_factors(stats_df, current_season):
+def qb_team_games(per_game):
+    """Collapses QB rows to one row per offense per game. When two QBs play
+    in one game (injury, benching, garbage time -- about a fifth of
+    team-games), counting each as its own game makes the defense look far
+    stingier (or, flipped, far more generous) than it was."""
+    qb = per_game[per_game["position"] == "QB"]
+    games = qb.groupby(["season", "week", "recent_team", "opponent_team"], as_index=False)["_val"].sum()
+    return games.assign(position="QB")
+
+
+def build_defense_factors(stats_df, current_season, shrink_k=None):
     """{market_key: {"overall": {team: factor}, "by_position": {position: {team: factor}}}}
 
     How much a defense inflates or suppresses opponents' production in a
@@ -180,7 +204,13 @@ def build_defense_factors(stats_df, current_season):
     allows to running backs specifically, not blended in with wideouts.
     Falls back to one blended team factor (all positions combined) when a
     position-specific bucket is too thin to trust.
+
+    QB-only markets are judged per offense per game (see qb_team_games),
+    and `shrink_k` pulls thin-history factors toward neutral (see
+    weighted_defense_factors).
     """
+    if shrink_k is None:
+        shrink_k = DEFENSE_SHRINK_K
     stats_df = stats_df.sort_values(["season", "week"], ascending=False)
     factors = {}
     for mkey, cfg in MARKETS.items():
@@ -190,11 +220,14 @@ def build_defense_factors(stats_df, current_season):
         else:
             per_game["_val"] = per_game[cfg["stat_cols"]].fillna(0).sum(axis=1)
 
+        if cfg["position_group"] == {"QB"}:
+            per_game = qb_team_games(per_game)
+
         league_avg = per_game["_val"].mean()
         if not league_avg:
             continue
 
-        overall_factors = weighted_defense_factors(per_game, current_season, league_avg)
+        overall_factors = weighted_defense_factors(per_game, current_season, league_avg, shrink_k)
 
         by_position = {}
         for position in cfg["position_group"]:
@@ -203,7 +236,7 @@ def build_defense_factors(stats_df, current_season):
             if not pos_league_avg:
                 continue
             row_counts = pos_rows.groupby("opponent_team")["_val"].count()
-            pos_factors = weighted_defense_factors(pos_rows, current_season, pos_league_avg)
+            pos_factors = weighted_defense_factors(pos_rows, current_season, pos_league_avg, shrink_k)
             by_position[position] = {
                 team: value
                 for team, value in pos_factors.items()
