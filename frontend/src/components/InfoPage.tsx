@@ -147,28 +147,39 @@ export default function InfoPage({
             still isn't automatically better: a big edge on a thin sample is a red flag, not a
             lock (see Confidence).
           </Term>
-          <Term term={'Confidence & the game count (e.g. "7g")'}>
-            How much the model trusts its own projection, based on how many recent games it
-            had to work with (shown as e.g. "7g" = 7 games) and how consistent the player's
-            output has been game to game.
+          <Term term="Confidence">
+            For player props, how likely the pick is to beat what the sportsbook's own odds
+            expect &mdash; not just how likely it is to hit. It comes from a small model trained
+            on how past picks here actually turned out, using three signals the odds don't fully
+            account for: the pick's edge, how many of the player's last 5 games went the
+            picked way, and how the opponent's defense leans relative to the pick. The model
+            is refit every day as new games are graded. Open any prop to see the specific
+            reasons behind its rating, marked + (supports the pick) or &minus; (against it).
             <ul className="ml-4 mt-2 list-disc space-y-1">
-              <li><strong>High</strong>: 8+ games, and fairly consistent output.</li>
-              <li><strong>Medium</strong>: 5+ games, or more variable output.</li>
-              <li><strong>Low</strong>: fewer games or highly volatile numbers &mdash; treat these projections loosely.</li>
+              <li>
+                <strong>High</strong>: the strongest picks, about the top fifth. In a backtest on
+                weeks 3&ndash;5 of 2026 (each week scored by a model that hadn't seen it), High
+                picks hit 69% when the market expected 52%.
+              </li>
+              <li>
+                <strong>Medium</strong>: some signal in the pick's favor, but not enough to
+                separate it from the market &mdash; these hit about as often as the odds imply.
+              </li>
+              <li>
+                <strong>Low</strong>: the signals point against the pick, even though the model
+                still found a small edge. These did slightly worse than the odds implied.
+              </li>
             </ul>
-            Where available, this also shifts by one tier based on whether ESPN's own,
-            independently-computed weekly projection agrees or disagrees &mdash; see
-            &quot;ESPN 2nd opinion&quot; below. High is also capped down to Medium once there
-            are 3+ current-season games on record for that market and the player hasn't
-            actually hit this side of the line in any of them yet &mdash; the season-weighted
-            projection can still call it a good bet, but a trend badge like "8 of last 10
-            games" mixes in last season's games unweighted, so it can look stronger than the
-            player's real form this year. Below 3 current-season games, a single miss is too
-            close to a coin flip to hold against it. On the Anytime TD tab specifically, High is
-            capped further still: no more than 10% of that week's Anytime TD props can carry a
-            High label at all, keeping only the highest-edge ones and demoting the rest to
-            Medium &mdash; the track record showed High-confidence Anytime TD picks hitting far
-            less often than High on every other market.
+            Other signals were tested and left out because they didn't add anything once these
+            were known: results so far this season, recent usage and snap-count trends, sample
+            size, and how volatile the player is game to game. Early on, this rests on only a
+            few weeks of graded picks, so expect real results to land below the backtest.
+            <p className="mt-2">
+              Anytime TD works differently: nothing tested predicted it better than the odds, so
+              it keeps a simpler rating based on how many games (shown as e.g. &quot;7g&quot;)
+              and how consistent the player has been, shifted by ESPN&apos;s projection where
+              available, with no more than 10% of a week&apos;s Anytime TD props rated High.
+            </p>
           </Term>
         </dl>
       </Section>
@@ -238,9 +249,11 @@ export default function InfoPage({
             line sitting between them. Only when ESPN lands on the same side does it get graded
             by how close the two numbers are: &quot;agrees&quot; or &quot;roughly agrees.&quot;
             Two independently-built projections landing in the same place is modest evidence the
-            number isn't a fluke, and a real disagreement is a reason for more caution &mdash;
-            each shifts Confidence by at most one tier, in that direction, never overriding it
-            outright. Missing for players ESPN hasn't projected for that week yet, or for
+            number isn't a fluke, and a real disagreement is a reason for more caution. On the
+            Anytime TD tab each shifts Confidence by at most one tier, in that direction. For
+            other props it's shown for reference only: ESPN's projections weren't saved with
+            past picks, so the confidence model has no record yet of whether they help. Missing
+            for players ESPN hasn't projected for that week yet, or for
             Anytime TD (a yes/no market with no line for ESPN's number to cross, so it falls
             back to a plain numeric comparison there).
           </Term>

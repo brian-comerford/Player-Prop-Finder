@@ -35,6 +35,9 @@ export interface Prop {
   defense_factor: number;
   sample_games: number;
   confidence: Confidence;
+  // Signals behind a player prop's confidence tier, strongest first; empty
+  // for Anytime TD, which still uses the older games/consistency label.
+  confidence_reasons: { text: string; supports: boolean }[];
   recent_games: RecentGame[];
   trends: string[];
   injury_status: string | null;

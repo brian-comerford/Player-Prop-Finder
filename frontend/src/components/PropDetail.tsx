@@ -71,7 +71,10 @@ export default function PropDetail({ prop, onClose }: { prop: Prop; onClose: () 
           <Stat label="Model probability" value={formatPctWithOdds(sideModelProb(prop, side))} />
           <Stat label="Book implied (no-vig)" value={formatPct(sideImpliedProb(prop, side))} />
           <Stat label="Opponent factor" value={`${prop.defense_factor}x`} />
-          <Stat label="Confidence" value={`${prop.confidence} (${prop.sample_games}g)`} />
+          <Stat
+            label="Confidence"
+            value={binary ? `${prop.confidence} (${prop.sample_games}g)` : prop.confidence}
+          />
           {prop.espn_projected_value !== null && (
             <Stat
               label="ESPN 2nd opinion"
@@ -80,6 +83,29 @@ export default function PropDetail({ prop, onClose }: { prop: Prop; onClose: () 
             />
           )}
         </div>
+
+        {prop.confidence_reasons.length > 0 && (
+          <div className="mb-5 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+            <p className="mb-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+              Why {prop.confidence} confidence
+            </p>
+            <ul className="space-y-1 text-sm">
+              {prop.confidence_reasons.map((reason, i) => (
+                <li key={i} className="flex items-start gap-1.5">
+                  <span
+                    className={`mt-0.5 font-bold ${
+                      reason.supports ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                    }`}
+                    aria-label={reason.supports ? "supports the pick" : "against the pick"}
+                  >
+                    {reason.supports ? "+" : "−"}
+                  </span>
+                  <span>{reason.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {prop.trends.length > 0 && (
           <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">
