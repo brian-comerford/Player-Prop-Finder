@@ -133,7 +133,8 @@ export default function PropsTable({
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${confidenceColorClass(p.confidence)}`}
                     >
-                      {p.confidence} &middot; {p.sample_games}g
+                      {p.confidence}
+                      {binary && <> &middot; {p.sample_games}g</>}
                     </span>
                   </td>
                 </tr>

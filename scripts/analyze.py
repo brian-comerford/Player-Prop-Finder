@@ -13,6 +13,8 @@ from collections import Counter
 import pandas as pd
 from scipy.stats import norm
 
+import confidence as pick_confidence
+
 from common import (
     DATA_DIR,
     MARKETS,
@@ -376,6 +378,9 @@ def snapshot_current_week_picks(props, season, week):
             ),
             "edge": p["recommended_edge"],
             "confidence": p["confidence"],
+            # The signals confidence.py scores, so each week's graded picks
+            # become training data for the next refit.
+            "conf_features": p["confidence_features"],
             # The recommended side's price at snapshot time, so units won
             # can later be computed against what was actually offered
             # rather than an assumed standard vig.
@@ -544,7 +549,10 @@ def build_track_record(market_filter=None):
                 continue
             with open(os.path.join(HISTORY_DIR, fname)) as f:
                 data = json.load(f)
-            picks = [p for p in data["picks"] if market_filter(p)] if market_filter else data["picks"]
+            shown = [p for p in data["picks"] if not p.get("backfilled")]
+            if data["picks"] and not shown:
+                continue  # a reconstructed week (see backfill_history.py), never shown live
+            picks = [p for p in shown if market_filter(p)] if market_filter else shown
             # A week's picks count toward the hit rate the moment their
             # own game is graded, even before the rest of that week's
             # games are final -- only the "N graded weeks" figure below
@@ -600,7 +608,7 @@ def build_track_record_detail(market_filter=None):
             with open(os.path.join(HISTORY_DIR, fname)) as f:
                 data = json.load(f)
             for p in data["picks"]:
-                if market_filter and not market_filter(p):
+                if p.get("backfilled") or (market_filter and not market_filter(p)):
                     continue
                 picks.append(
                     {
@@ -868,6 +876,14 @@ def main():
     baselines, team_by_player = build_player_baselines(stats_df, current_season)
     defense_factors = build_defense_factors(stats_df, current_season)
     defense_tier_cache = {}
+    confidence_model = pick_confidence.fit_model(HISTORY_DIR)
+    if confidence_model:
+        print(
+            f"Confidence model fit on {confidence_model['n']} graded props "
+            f"(High at >= {confidence_model['high_cut'] * 100:.1f} pts over market)"
+        )
+    else:
+        print("Not enough graded props with recorded signals yet; using the fallback confidence label")
 
     inactive_players = set()
     ruled_out_players = set()
@@ -974,12 +990,26 @@ def main():
 
         espn_value = espn_projected_value(q["market"], espn_projections.get(base["player_id"]))
         agreement = espn_agreement_level(projected_mean, espn_value, q["point"], recommended_side)
-        confidence = adjust_confidence(
-            confidence_label(base["games"], base["mean"], base["std"]), agreement
-        )
-        confidence = cap_confidence_if_cold_this_season(
-            confidence, base["game_log"], current_season, cfg.get("binary", False), recommended_side, q["point"]
-        )
+        conf_features = None
+        conf_reasons = []
+        if not cfg.get("binary"):
+            conf_features = pick_confidence.pick_features(
+                base["game_log"], recommended_side, q["point"], factor, recommended_edge
+            )
+        if conf_features and confidence_model:
+            market_prob = novig_over if recommended_side == "over" else novig_under
+            confidence, conf_reasons, _ = pick_confidence.assess(
+                confidence_model, conf_features, market_prob, recommended_side, q["point"], opponent, cfg["noun"]
+            )
+        else:
+            # Anytime TD (nothing tested beat the market there), or not
+            # enough graded history yet: the older games/consistency label.
+            confidence = adjust_confidence(
+                confidence_label(base["games"], base["mean"], base["std"]), agreement
+            )
+            confidence = cap_confidence_if_cold_this_season(
+                confidence, base["game_log"], current_season, cfg.get("binary", False), recommended_side, q["point"]
+            )
 
         props.append(
             {
@@ -1012,6 +1042,8 @@ def main():
                 "defense_factor": round(factor, 3),
                 "sample_games": base["games"],
                 "confidence": confidence,
+                "confidence_reasons": conf_reasons,
+                "confidence_features": conf_features,
                 "recent_games": base["recent_games"],
                 "trends": trends,
                 "injury_status": injury_status,
