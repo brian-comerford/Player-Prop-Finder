@@ -222,7 +222,12 @@ export default function InfoPage({
             position-specific sample is too thin. Weighted the same way the player's own
             projection is: a defense's more recent games count more, and its games from the
             current season count more than last season's at the same recency &mdash; a defense's
-            personnel and scheme can change season to season just like an offense's can.
+            personnel and scheme can change season to season just like an offense's can. It's
+            also pulled toward neutral (1.00x) when it rests on little history, so a defense's
+            first few games of a season &mdash; often against an easy or hard run of offenses
+            &mdash; can't swing a projection much on their own. For quarterback stats, a
+            defense is judged on what it allowed each offense per game, so a game where a
+            starter got hurt and a backup finished counts as one game, not two.
           </Term>
           <Term term="ESPN 2nd opinion">
             Where ESPN publishes its own weekly fantasy projection for this player and stat, it
