@@ -1,11 +1,16 @@
 import { useMemo, useState } from "react";
 import type { Confidence, GradedPick, TrackRecord, TrackRecordDetail } from "../lib/types";
-import { formatUnits, pillClass } from "../lib/format";
+import { formatUnits } from "../lib/format";
 import { sumUnits } from "../lib/odds";
 import { useLockBodyScroll } from "../lib/useLockBodyScroll";
+import PickFilters, {
+  DEFAULT_PICK_FILTERS,
+  matchesPickFilters,
+  pickFiltersActive,
+  type PickFilterState,
+} from "./PickFilters";
 
 const CONFIDENCE_TIERS: Confidence[] = ["High", "Medium", "Low"];
-const CONFIDENCE_OPTIONS: Array<Confidence | "All"> = ["All", "High", "Medium", "Low"];
 
 interface WeekGroup {
   season: number;
@@ -122,9 +127,7 @@ function TrackRecordPanel({
   useLockBodyScroll();
   const overall = trackRecord.overall!;
 
-  const [minEdge, setMinEdge] = useState(0);
-  const [confidence, setConfidence] = useState<Confidence | "All">("All");
-  const [markets, setMarkets] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState<PickFilterState>(DEFAULT_PICK_FILTERS);
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
 
   const marketOptions = useMemo(() => {
@@ -132,24 +135,10 @@ function TrackRecordPanel({
     return Array.from(new Set(detail.picks.map((p) => p.market_label))).sort();
   }, [detail]);
 
-  const filteredPicks = useMemo(() => {
-    if (!detail) return [];
-    return detail.picks.filter(
-      (p) =>
-        // minEdge at its floor (0%) means "no edge filter" -- some graded
-        // picks carry a negative edge (the model still grades whichever
-        // side it liked better even when neither side looked profitable),
-        // and those should still count by default so the unfiltered
-        // totals here match the overall summary above, not silently drop
-        // picks before the user has touched the slider.
-        (minEdge <= 0 || p.edge >= minEdge) &&
-        (confidence === "All" || p.confidence === confidence) &&
-        // No bet types selected means "All" -- same as before this was
-        // multi-select, just expressed as an empty set instead of a
-        // sentinel string.
-        (markets.size === 0 || markets.has(p.market_label))
-    );
-  }, [detail, minEdge, confidence, markets]);
+  const filteredPicks = useMemo(
+    () => (detail ? detail.picks.filter((p) => matchesPickFilters(p, filters)) : []),
+    [detail, filters]
+  );
 
   const filteredSummary = useMemo(() => {
     const n = filteredPicks.length;
@@ -163,22 +152,13 @@ function TrackRecordPanel({
   }, [filteredPicks]);
 
   const weekGroups = useMemo(() => groupByWeek(filteredPicks), [filteredPicks]);
-  const filtersActive = minEdge > 0 || confidence !== "All" || markets.size > 0;
+  const filtersActive = pickFiltersActive(filters);
 
   function toggleWeek(key: string) {
     setExpandedWeeks((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
-      return next;
-    });
-  }
-
-  function toggleMarket(m: string) {
-    setMarkets((prev) => {
-      const next = new Set(prev);
-      if (next.has(m)) next.delete(m);
-      else next.add(m);
       return next;
     });
   }
@@ -237,58 +217,7 @@ function TrackRecordPanel({
 
         {detail && (
           <>
-            <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">
-                    Min. edge: {(minEdge * 100).toFixed(1)}%
-                  </span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={0.1}
-                    step={0.005}
-                    value={minEdge}
-                    onChange={(e) => setMinEdge(Number(e.target.value))}
-                    className="mt-2"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">Confidence</span>
-                  <select
-                    value={confidence}
-                    onChange={(e) => setConfidence(e.target.value as Confidence | "All")}
-                    className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
-                  >
-                    {CONFIDENCE_OPTIONS.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <div className="mt-3 flex flex-col gap-1.5 text-sm">
-                <span className="text-slate-500 dark:text-slate-400">
-                  Bet type{markets.size > 0 && ` (${markets.size} selected)`}
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setMarkets(new Set())}
-                    className={pillClass(markets.size === 0)}
-                  >
-                    All
-                  </button>
-                  {marketOptions.map((m) => (
-                    <button key={m} type="button" onClick={() => toggleMarket(m)} className={pillClass(markets.has(m))}>
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <PickFilters filters={filters} onChange={setFilters} marketOptions={marketOptions} />
 
             {filtersActive && (
               <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">

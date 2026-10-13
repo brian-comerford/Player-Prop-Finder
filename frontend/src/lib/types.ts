@@ -74,6 +74,31 @@ export interface HitRateSummary {
   priced_picks: number;
 }
 
+// Today's confidence model replayed on every graded week, each week scored
+// by a model fit only on the other weeks (see scripts/confidence.py).
+export interface BacktestPick {
+  season: number;
+  week: number;
+  confidence: Confidence;
+  market_label: string;
+  edge: number;
+  // The market's no-vig probability for the picked side.
+  market_prob: number;
+  hit: boolean;
+  price: number | null;
+}
+
+export interface ConfidenceBacktest {
+  weeks: {
+    season: number;
+    week: number;
+    // Rebuilt after the fact from historical odds; never shown live.
+    backfilled: boolean;
+    trained_on: number;
+  }[];
+  picks: BacktestPick[];
+}
+
 export interface TrackRecord {
   overall: HitRateSummary | null;
   by_confidence: Partial<Record<Confidence, HitRateSummary>>;

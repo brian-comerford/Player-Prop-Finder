@@ -17,10 +17,11 @@ Usage: python scripts/grade_only.py
 import json
 import os
 
+import confidence as pick_confidence
 import fetch_stats
 import fetch_team_stats
 import pandas as pd
-from analyze import build_track_record, build_track_record_detail, grade_past_weeks
+from analyze import HISTORY_DIR, build_track_record, build_track_record_detail, comparable_edge, grade_past_weeks
 from analyze_games import (
     build_game_track_record,
     build_game_track_record_detail,
@@ -75,6 +76,8 @@ def main():
         f"Wrote Anytime TD track record detail ({len(anytime_td_track_record_detail['picks'])} graded picks) "
         "-> data/anytime_td_track_record_detail.json"
     )
+
+    pick_confidence.write_backtest(HISTORY_DIR, DATA_DIR, comparable_edge)
 
     fetch_team_stats.main(season_week["upcoming_season"])
     team_stats_path = os.path.join(DATA_DIR, "team_game_stats.csv")

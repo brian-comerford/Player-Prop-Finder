@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ThemeChoice } from "../lib/useTheme";
+import ConfidenceBacktest from "./ConfidenceBacktest";
 
 const THEME_OPTIONS: { value: ThemeChoice; label: string }[] = [
   { value: "system", label: "System" },
@@ -158,8 +159,8 @@ export default function InfoPage({
             <ul className="ml-4 mt-2 list-disc space-y-1">
               <li>
                 <strong>High</strong>: the strongest picks, about the top fifth. In a backtest on
-                weeks 3&ndash;5 of 2026 (each week scored by a model that hadn't seen it), High
-                picks hit 69% when the market expected 52%.
+                weeks 1&ndash;5 of 2026 (each week scored by a model that hadn't seen it), High
+                picks hit 66% when the market expected 51%.
               </li>
               <li>
                 <strong>Medium</strong>: some signal in the pick's favor, but not enough to
@@ -180,6 +181,7 @@ export default function InfoPage({
               and how consistent the player has been, shifted by ESPN&apos;s projection where
               available, with no more than 10% of a week&apos;s Anytime TD props rated High.
             </p>
+            <ConfidenceBacktest />
           </Term>
         </dl>
       </Section>

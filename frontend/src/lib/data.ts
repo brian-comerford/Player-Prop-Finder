@@ -1,4 +1,5 @@
 import type {
+  ConfidenceBacktest,
   GameMeta,
   GameProp,
   GameTrackRecordDetail,
@@ -64,4 +65,8 @@ export function fetchGameTrackRecord(): Promise<TrackRecord> {
 
 export function fetchGameTrackRecordDetail(): Promise<GameTrackRecordDetail> {
   return fetchJson<GameTrackRecordDetail>("game_track_record_detail.json");
+}
+
+export function fetchConfidenceBacktest(): Promise<ConfidenceBacktest> {
+  return fetchJson<ConfidenceBacktest>("confidence_backtest.json");
 }
