@@ -12,10 +12,12 @@ only learns what each signal adds on top of the odds:
 - defense_supports: how much the opponent's defense factor leans toward
   the pick (+0.10 = it allows 10% more on an Over, or 10% less on an Under)
 
-Backtested on 1,582 graded 2026 wk3-5 props, scoring each week with a model
+Designed on 1,582 graded 2026 wk3-5 props, scoring each week with a model
 fit only on the other weeks: the top fifth by predicted advantage over the
 market (High) hit 68.9% against 51.9% expected; the old games-and-
-consistency label's High hit 49.4%. Other candidates -- results so far this
+consistency label's High hit 49.4%. Weeks 1-2, rebuilt later from
+historical odds, held up out of sample (High 64.1% vs 50.9%). backtest()
+reruns this on every graded week for the site. Other candidates -- results so far this
 season (redundant with last 5), usage trend, snap share and trend, sample
 size, volatility -- added nothing held out, so they aren't used.
 
@@ -26,6 +28,8 @@ import json
 import os
 
 import numpy as np
+
+from common import pick_units
 
 FEATURES = ("edge", "last5_clear", "defense_supports")
 MIN_TRAINING_PICKS = 300
@@ -57,21 +61,39 @@ def _logit(p):
     return np.log(p / (1 - p))
 
 
-def fit_model(history_dir):
-    """None until there are enough graded picks with recorded signals."""
-    feats, market_probs, hits = [], [], []
+def _graded_weeks(history_dir):
+    """[(season, week, was it rebuilt by backfill_history.py, scorable picks)]."""
+    weeks = []
     for path in sorted(glob.glob(os.path.join(history_dir, "results_*.json"))):
         with open(path) as f:
             data = json.load(f)
-        for pick in data["picks"]:
-            f_ = pick.get("conf_features")
-            if not f_ or pick["market"] == "player_anytime_td":
-                continue
-            feats.append([f_[k] for k in FEATURES])
-            market_probs.append(pick["model_prob"] - pick["edge"])
-            hits.append(1.0 if pick["hit"] else 0.0)
-    if len(hits) < MIN_TRAINING_PICKS:
+        picks = [
+            p for p in data["picks"]
+            if p.get("conf_features") and p["market"] != "player_anytime_td"
+        ]
+        backfilled = bool(data["picks"]) and all(p.get("backfilled") for p in data["picks"])
+        weeks.append((data["season"], data["week"], backfilled, picks))
+    return weeks
+
+
+def _market_prob(pick):
+    return pick["model_prob"] - pick["edge"]
+
+
+def fit_model(history_dir, exclude_week=None):
+    """None until there are enough graded picks with recorded signals.
+    exclude_week=(season, week) leaves that week out (see backtest)."""
+    picks = [
+        p
+        for season, week, _, week_picks in _graded_weeks(history_dir)
+        if (season, week) != exclude_week
+        for p in week_picks
+    ]
+    if len(picks) < MIN_TRAINING_PICKS:
         return None
+    feats = [[p["conf_features"][k] for k in FEATURES] for p in picks]
+    market_probs = [_market_prob(p) for p in picks]
+    hits = [1.0 if p["hit"] else 0.0 for p in picks]
 
     raw = np.array(feats, dtype=float)
     means, sds = raw.mean(axis=0), raw.std(axis=0)
@@ -96,8 +118,8 @@ def fit_model(history_dir):
     }
 
 
-def assess(model, features, market_prob, side, line, opponent, noun):
-    """(tier, reasons, predicted advantage over the market)."""
+def _score(model, features, market_prob):
+    """(tier, standardized features, predicted advantage over the market)."""
     z = (np.array([features[k] for k in FEATURES], dtype=float) - model["means"]) / model["sds"]
     logit = _logit(market_prob) + model["weights"][0] + z @ model["weights"][1:]
     advantage = float(1 / (1 + np.exp(-logit)) - market_prob)
@@ -107,6 +129,12 @@ def assess(model, features, market_prob, side, line, opponent, noun):
         tier = "Medium"
     else:
         tier = "Low"
+    return tier, z, advantage
+
+
+def assess(model, features, market_prob, side, line, opponent, noun):
+    """(tier, reasons, predicted advantage over the market)."""
+    tier, z, advantage = _score(model, features, market_prob)
 
     contributions = dict(zip(FEATURES, model["weights"][1:] * z))
     texts = {
@@ -130,3 +158,57 @@ def _defense_text(factor, opponent, noun):
     if pct < 2:
         return f"{opponent} is about average against {noun}"
     return f"{opponent} allows {pct}% {'more' if factor > 1 else 'fewer'} {noun} than average"
+
+
+def backtest(history_dir):
+    """Today's confidence system replayed on every graded week: each week's
+    picks are tiered by a model fit only on the *other* weeks, so no week
+    is graded by a model that already saw its results. Covers every listed
+    non-Anytime-TD pick with recorded signals, before any edge filter, and
+    includes weeks rebuilt by backfill_history.py (flagged), which the
+    live track record leaves out."""
+    graded = _graded_weeks(history_dir)
+
+    def summarize(picks):
+        if not picks:
+            return None
+        hits = sum(1 for p in picks if p["hit"])
+        units = [u for u in (pick_units(p.get("price"), p["hit"]) for p in picks) if u is not None]
+        return {
+            "picks": len(picks),
+            "hits": hits,
+            "hit_rate": round(hits / len(picks), 3),
+            "expected_hit_rate": round(sum(_market_prob(p) for p in picks) / len(picks), 3),
+            "units": round(sum(units), 2) if units else None,
+            "priced_picks": len(units),
+        }
+
+    weeks, by_tier = [], {"High": [], "Medium": [], "Low": []}
+    for season, week, backfilled, picks in graded:
+        model = fit_model(history_dir, exclude_week=(season, week)) if picks else None
+        if model is None:
+            continue
+        tiers = {"High": [], "Medium": [], "Low": []}
+        for p in picks:
+            tier, _, _ = _score(model, p["conf_features"], _market_prob(p))
+            tiers[tier].append(p)
+            by_tier[tier].append(p)
+        weeks.append({
+            "season": season,
+            "week": week,
+            "backfilled": backfilled,
+            "trained_on": model["n"],
+            "tiers": {t: summarize(ps) for t, ps in tiers.items() if ps},
+        })
+    return {
+        "overall": {t: summarize(ps) for t, ps in by_tier.items() if ps},
+        "weeks": weeks,
+    }
+
+
+def write_backtest(history_dir, data_dir):
+    result = backtest(history_dir)
+    with open(os.path.join(data_dir, "confidence_backtest.json"), "w") as f:
+        json.dump(result, f)
+    n = sum(s["picks"] for s in result["overall"].values())
+    print(f"Wrote confidence backtest ({len(result['weeks'])} weeks, {n} picks) -> data/confidence_backtest.json")

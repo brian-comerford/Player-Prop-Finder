@@ -1188,6 +1188,8 @@ def main():
         "-> data/anytime_td_track_record_detail.json"
     )
 
+    pick_confidence.write_backtest(HISTORY_DIR, DATA_DIR)
+
 
 if __name__ == "__main__":
     main()
