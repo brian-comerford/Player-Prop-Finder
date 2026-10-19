@@ -180,6 +180,7 @@ def backtest(history_dir, edge_fn):
                 "season": season,
                 "week": week,
                 "confidence": tier,
+                "side": p["side"],
                 "market_label": MARKETS[p["market"]]["label"],
                 "edge": edge_fn(p),
                 "market_prob": round(_market_prob(p), 4),

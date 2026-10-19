@@ -80,6 +80,7 @@ export interface BacktestPick {
   season: number;
   week: number;
   confidence: Confidence;
+  side: Side;
   market_label: string;
   edge: number;
   // The market's no-vig probability for the picked side.
