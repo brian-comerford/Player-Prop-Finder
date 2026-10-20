@@ -135,6 +135,12 @@ function TrackRecordPanel({
     return Array.from(new Set(detail.picks.map((p) => p.market_label))).sort();
   }, [detail]);
 
+  // Anytime TD picks have no line; their sides read better as Yes/No.
+  const isAnytimeTd = useMemo(
+    () => !!detail && detail.picks.length > 0 && detail.picks.every((p) => p.line === null),
+    [detail]
+  );
+
   const filteredPicks = useMemo(
     () => (detail ? detail.picks.filter((p) => matchesPickFilters(p, filters)) : []),
     [detail, filters]
@@ -217,7 +223,13 @@ function TrackRecordPanel({
 
         {detail && (
           <>
-            <PickFilters filters={filters} onChange={setFilters} marketOptions={marketOptions} />
+            <PickFilters
+              filters={filters}
+              onChange={setFilters}
+              marketOptions={marketOptions}
+              sideLabels={isAnytimeTd ? { over: "Yes (scores)", under: "No TD" } : undefined}
+              hideSide={new Set(detail.picks.map((p) => p.side)).size < 2}
+            />
 
             {filtersActive && (
               <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">

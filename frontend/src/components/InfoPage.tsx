@@ -344,9 +344,10 @@ export default function InfoPage({
           collapsed by default so it doesn't dump the whole season on you at once &mdash;
           expand a week to see exactly which picks hit and, for the ones that missed, how
           close they came (e.g. a pick needing Over 65.5 that the player finished at 63 missed
-          by 2.5). A Min. edge slider, Confidence filter, and Bet type filter above the list
-          narrow it down to a specific slice, e.g. only High-confidence Receiving Yards picks
-          above 5% edge, with the hit rate for just that filtered set shown above the results.
+          by 2.5). A Min. edge slider, Confidence filter, Side filter (Over or Under), and Bet
+          type filter above the list narrow it down to a specific slice, e.g. only
+          High-confidence Under picks on Receiving Yards above 5% edge, with the hit rate for
+          just that filtered set shown above the results.
           Bet type supports picking several markets at once (e.g. Receiving Yards and Rush +
           Rec Yards together) by tapping each one &mdash; tap "All" to clear back to every
           market.
@@ -366,7 +367,7 @@ export default function InfoPage({
           This is only as complete as the odds actually recorded: a pick graded before this was
           tracked has no price to compute units from, so it's left out of the units total (the
           panel notes how many of the graded picks that total actually covers) while still
-          counting toward the hit rate above it. The same Min. edge, Confidence, and Bet type
+          counting toward the hit rate above it. The same Min. edge, Confidence, Side, and Bet type
           filters narrow the units figure down to a specific slice too.
         </p>
       </Section>

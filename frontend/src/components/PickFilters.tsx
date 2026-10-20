@@ -1,4 +1,4 @@
-import type { Confidence } from "../lib/types";
+import type { Confidence, Side } from "../lib/types";
 import { pillClass } from "../lib/format";
 
 const CONFIDENCE_OPTIONS: Array<Confidence | "All"> = ["All", "High", "Medium", "Low"];
@@ -6,18 +6,24 @@ const CONFIDENCE_OPTIONS: Array<Confidence | "All"> = ["All", "High", "Medium", 
 export interface PickFilterState {
   minEdge: number;
   confidence: Confidence | "All";
+  side: Side | "All";
   // Empty means "All".
   markets: Set<string>;
 }
 
-export const DEFAULT_PICK_FILTERS: PickFilterState = { minEdge: 0, confidence: "All", markets: new Set() };
+export const DEFAULT_PICK_FILTERS: PickFilterState = {
+  minEdge: 0,
+  confidence: "All",
+  side: "All",
+  markets: new Set(),
+};
 
 export function pickFiltersActive(f: PickFilterState): boolean {
-  return f.minEdge > 0 || f.confidence !== "All" || f.markets.size > 0;
+  return f.minEdge > 0 || f.confidence !== "All" || f.side !== "All" || f.markets.size > 0;
 }
 
 export function matchesPickFilters(
-  p: { edge: number; confidence: Confidence; market_label: string },
+  p: { edge: number; confidence: Confidence; side: Side; market_label: string },
   f: PickFilterState
 ): boolean {
   return (
@@ -29,22 +35,29 @@ export function matchesPickFilters(
     // touched the slider.
     (f.minEdge <= 0 || p.edge >= f.minEdge) &&
     (f.confidence === "All" || p.confidence === f.confidence) &&
+    (f.side === "All" || p.side === f.side) &&
     (f.markets.size === 0 || f.markets.has(p.market_label))
   );
 }
 
-// The Min. edge / Confidence / Bet type controls shared by the track
-// record panel and the confidence backtest.
+// The Min. edge / Confidence / Side / Bet type controls shared by the
+// track record panel and the confidence backtest. sideLabels lets the
+// Anytime TD record say Yes/No instead of Over/Under; hideSide drops the
+// Side control when every pick is on the same side.
 export default function PickFilters({
   filters,
   onChange,
   marketOptions,
+  sideLabels = { over: "Over", under: "Under" },
+  hideSide = false,
 }: {
   filters: PickFilterState;
   onChange: (next: PickFilterState) => void;
   marketOptions: string[];
+  sideLabels?: Record<Side, string>;
+  hideSide?: boolean;
 }) {
-  const { minEdge, confidence, markets } = filters;
+  const { minEdge, confidence, side, markets } = filters;
 
   function toggleMarket(m: string) {
     const next = new Set(markets);
@@ -55,7 +68,7 @@ export default function PickFilters({
 
   return (
     <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className={`grid grid-cols-1 gap-3 ${hideSide ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-slate-500 dark:text-slate-400">Min. edge: {(minEdge * 100).toFixed(1)}%</span>
           <input
@@ -82,6 +95,20 @@ export default function PickFilters({
             ))}
           </select>
         </label>
+        {!hideSide && (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-slate-500 dark:text-slate-400">Side</span>
+            <select
+              value={side}
+              onChange={(e) => onChange({ ...filters, side: e.target.value as Side | "All" })}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+            >
+              <option value="All">All</option>
+              <option value="over">{sideLabels.over}</option>
+              <option value="under">{sideLabels.under}</option>
+            </select>
+          </label>
+        )}
       </div>
 
       <div className="mt-3 flex flex-col gap-1.5 text-sm">
