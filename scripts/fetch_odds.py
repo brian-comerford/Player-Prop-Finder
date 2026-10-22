@@ -36,13 +36,15 @@ from kalshi import fetch_kalshi_quotes
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 SPORT_KEY = "americanfootball_nfl"
-# Restricted to books most people can actually bet on, rather than whatever
-# else The Odds API's broader "us"/"us2" regions happen to aggregate -- see
-# the "book_over"/"book_under" fields for which of these a given price came
-# from. Fliff spans the separate "us2" region, which The Odds API bills as
-# an extra region multiplier on top of "us" (draftkings/fanduel) -- watch
-# the free tier's 500 credits/month if usage climbs after enabling it.
-BOOKMAKERS = "draftkings,fanduel,fliff"
+# Restricted to the books and exchanges the site's user can actually bet
+# on (see the "book_over"/"book_under" fields for which of these a given
+# price came from). Novig, Kalshi and Polymarket are exchanges (The Odds
+# API's "us_ex" region): little or no vig when there's liquidity, which
+# matters because the vig ate most of the High tier's edge. The Odds API
+# bills a bookmakers list by groups of 10 (each group = one region), so up
+# to 10 books cost the same as one; fetch_live logs the actual per-event
+# cost to confirm.
+BOOKMAKERS = "draftkings,fanduel,fliff,novig,kalshi,polymarket"
 ODDS_FORMAT = "american"
 
 
@@ -108,6 +110,11 @@ def fetch_live(slate, api_key):
             print(f"  skipping event {event['id']} ({exc})")
             continue
         payload = r.json()
+        if not quotes:
+            print(
+                f"  Odds API cost per event: {r.headers.get('x-requests-last')} credits "
+                f"({r.headers.get('x-requests-remaining')} remaining)"
+            )
         quotes.extend(_parse_event_odds(payload))
         time.sleep(0.25)  # be polite / stay well under rate limits
     return quotes

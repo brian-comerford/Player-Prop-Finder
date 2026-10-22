@@ -5,6 +5,8 @@ const BOOK_LABELS: Record<string, string> = {
   fanduel: "FanDuel",
   fliff: "Fliff",
   kalshi: "Kalshi",
+  novig: "Novig",
+  polymarket: "Polymarket",
   sample: "Sample",
 };
 
