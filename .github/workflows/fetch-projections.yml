@@ -55,5 +55,7 @@ jobs:
             echo "No new projections to commit."
           else
             git commit -m "Save fantasy projections [skip ci]"
-            git push || (git pull --rebase origin main && git push)
+            # The daily deploy may have saved this week's file meanwhile;
+            # keep this run's copy (-X theirs = the commit being replayed).
+            git push || (git pull --rebase -X theirs origin main && git push)
           fi

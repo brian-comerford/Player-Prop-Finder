@@ -40,7 +40,7 @@ STAT_KEYS = (
 ESPN_STAT_IDS = {
     0: "pass_att", 3: "pass_yd", 4: "pass_td", 20: "pass_int",
     23: "rush_att", 24: "rush_yd", 25: "rush_td",
-    58: "rec_tgt", 41: "rec", 42: "rec_yd", 43: "rec_td",
+    58: "rec_tgt", 41: "rec", 53: "rec", 42: "rec_yd", 43: "rec_td",
 }
 
 
