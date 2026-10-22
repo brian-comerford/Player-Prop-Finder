@@ -159,8 +159,9 @@ export default function InfoPage({
             <ul className="ml-4 mt-2 list-disc space-y-1">
               <li>
                 <strong>High</strong>: the strongest picks, about the top fifth. In a backtest on
-                weeks 1&ndash;5 of 2026 (each week scored by a model that hadn't seen it), High
-                picks hit 66% when the market expected 51%.
+                weeks 1&ndash;6 of 2026 (each week scored by a model that hadn't seen it), High
+                picks hit 55% when the market expected 51% &mdash; a modest edge that roughly
+                broke even on units once the sportsbook's cut is paid.
               </li>
               <li>
                 <strong>Medium</strong>: some signal in the pick's favor, but not enough to
@@ -168,7 +169,8 @@ export default function InfoPage({
               </li>
               <li>
                 <strong>Low</strong>: the signals point against the pick, even though the model
-                still found a small edge. These did slightly worse than the odds implied.
+                still found a small edge. These hit about as often as the odds implied, which
+                loses money after the sportsbook's cut.
               </li>
             </ul>
             Other signals were tested and left out because they didn't add anything once these

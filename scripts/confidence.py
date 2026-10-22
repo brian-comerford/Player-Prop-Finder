@@ -12,12 +12,13 @@ only learns what each signal adds on top of the odds:
 - defense_supports: how much the opponent's defense factor leans toward
   the pick (+0.10 = it allows 10% more on an Over, or 10% less on an Under)
 
-Designed on 1,582 graded 2026 wk3-5 props, scoring each week with a model
-fit only on the other weeks: the top fifth by predicted advantage over the
-market (High) hit 68.9% against 51.9% expected; the old games-and-
-consistency label's High hit 49.4%. Weeks 1-2, rebuilt later from
-historical odds, held up out of sample (High 64.1% vs 50.9%). backtest()
-reruns this on every graded week for the site. Other candidates -- results so far this
+Designed on 1,582 graded 2026 wk3-5 props, where the top fifth by
+predicted advantage (High) appeared to hit 68.9% against 51.9% expected --
+but much of that came from interception props graded on stats that never
+counted interceptions (common.STATS_FIXES). With those regraded and the
+stale picks left out, wk1-6 held out gives High 55.0% vs 50.7% expected,
+about break-even on units. backtest() reruns this on every graded week for
+the site. Other candidates -- results so far this
 season (redundant with last 5), usage trend, snap share and trend, sample
 size, volatility -- added nothing held out, so they aren't used.
 
@@ -29,7 +30,7 @@ import os
 
 import numpy as np
 
-from common import MARKETS
+from common import MARKETS, modeled_on_stale_stats
 
 FEATURES = ("edge", "last5_clear", "defense_supports")
 MIN_TRAINING_PICKS = 300
@@ -70,6 +71,9 @@ def _graded_weeks(history_dir):
         picks = [
             p for p in data["picks"]
             if p.get("conf_features") and p["market"] != "player_anytime_td"
+            # Its edge came from a model fed wrong stats (common.STATS_FIXES),
+            # so it says nothing about what the signals are worth.
+            and not modeled_on_stale_stats(p)
         ]
         backfilled = bool(data["picks"]) and all(p.get("backfilled") for p in data["picks"])
         weeks.append((data["season"], data["week"], backfilled, picks))
