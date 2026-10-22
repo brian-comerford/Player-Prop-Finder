@@ -1,0 +1,59 @@
+name: Save fantasy projections
+
+# Manual: downloads ESPN and Sleeper weekly projections for past weeks into
+# data/history/projections_*.json (see scripts/fetch_projections.py), so
+# they can be backtested as a signal. No Odds API credits. The daily
+# deploy saves the upcoming week's on its own.
+on:
+  workflow_dispatch:
+    inputs:
+      season:
+        description: Season
+        required: true
+        default: "2026"
+      weeks:
+        description: Weeks, e.g. 1-7 or 1,3,5
+        required: true
+
+permissions:
+  contents: write
+
+# Same group as the other workflows that commit data/history.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install pipeline dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Fetch stats (for the per-position sanity check)
+        working-directory: scripts
+        run: python fetch_stats.py
+
+      - name: Fetch projections
+        working-directory: scripts
+        run: python fetch_projections.py --season "${{ inputs.season }}" --weeks "${{ inputs.weeks }}"
+
+      - name: Commit projections
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/history
+          if git diff --cached --quiet; then
+            echo "No new projections to commit."
+          else
+            git commit -m "Save fantasy projections [skip ci]"
+            git push || (git pull --rebase origin main && git push)
+          fi
