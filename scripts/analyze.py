@@ -55,6 +55,12 @@ TD_PROB_BOUNDS = (0.02, 0.95)
 # graded -- snapshots keep raw_model_prob for exactly that.
 MODEL_WEIGHT = 0.40
 MODEL_WEIGHT_ANYTIME_TD = 0.20
+# A side priced at or beyond this is never recommended: the payout is so
+# small that even a confident edge over the no-vig probability loses
+# money at the price (e.g. Novig's thinly traded "No TD" at -3233 against
+# +733 to score -- 0.03u to win, 1u to lose). Sportsbooks rarely go here;
+# it mainly screens one-sided exchange quotes.
+MIN_RECOMMENDED_PRICE = -1000
 
 TREND_WINDOW = 10
 TREND_MIN_GAMES = 4
@@ -994,8 +1000,11 @@ def main():
 
         candidates = [
             (side, edge)
-            for side, edge in (("over", edge_over), ("under", edge_under))
-            if edge is not None
+            for side, edge, price in (
+                ("over", edge_over, q["price_over"]),
+                ("under", edge_under, q["price_under"]),
+            )
+            if edge is not None and price is not None and price > MIN_RECOMMENDED_PRICE
         ]
         if not candidates:
             drop_no_candidates[q["market"]] += 1
