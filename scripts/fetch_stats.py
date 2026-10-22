@@ -67,7 +67,7 @@ PLAYER_ID_CROSSWALK_URL = (
 ESPN_STAT_IDS = {
     3: "pass_yd", 4: "pass_td",
     24: "rush_yd", 25: "rush_td",
-    41: "rec", 42: "rec_yd", 43: "rec_td",
+    41: "rec", 53: "rec", 42: "rec_yd", 43: "rec_td",
 }
 
 
