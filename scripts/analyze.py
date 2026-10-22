@@ -901,6 +901,8 @@ def main():
     baselines, team_by_player = build_player_baselines(stats_df, current_season)
     defense_factors = build_defense_factors(stats_df, current_season)
     defense_tier_cache = {}
+    pick_confidence.backfill_share_trend(HISTORY_DIR, stats_df)
+    share_ctx = pick_confidence.ShareContext(stats_df)
     confidence_model = pick_confidence.fit_model(HISTORY_DIR)
     if confidence_model:
         print(
@@ -1021,6 +1023,10 @@ def main():
             conf_features = pick_confidence.pick_features(
                 base["game_log"], recommended_side, q["point"], factor, recommended_edge
             )
+            conf_features.update(pick_confidence.share_features(
+                share_ctx, base["player_id"], player_team, season_week["upcoming_season"],
+                season_week["upcoming_week"], q["market"], base["position"], recommended_side,
+            ))
         if conf_features and confidence_model:
             market_prob = novig_over if recommended_side == "over" else novig_under
             confidence, conf_reasons, _ = pick_confidence.assess(

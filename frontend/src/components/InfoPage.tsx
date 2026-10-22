@@ -153,9 +153,12 @@ export default function InfoPage({
           <Term term="Confidence">
             For player props, how likely the pick is to beat what the sportsbook's own odds
             expect &mdash; not just how likely it is to hit. It comes from a small model trained
-            on how past picks here actually turned out, using three signals the odds don't fully
+            on how past picks here actually turned out, using four signals the odds don't fully
             account for: the pick's edge, how many of the player's last 5 games went the
-            picked way, and how the opponent's defense leans relative to the pick. The model
+            picked way, how the opponent's defense leans relative to the pick, and whether the
+            player's share of the team's targets or carries just jumped or dropped over the last
+            3 games (the market tends to overreact to those swings, so a sudden jump counts
+            slightly against an Over). The model
             is refit every day as new games are graded. Open any prop to see the specific
             reasons behind its rating, marked + (supports the pick) or &minus; (against it).
             <ul className="ml-4 mt-2 list-disc space-y-1">
@@ -176,8 +179,9 @@ export default function InfoPage({
               </li>
             </ul>
             Other signals were tested and left out because they didn't add anything once these
-            were known: results so far this season, recent usage and snap-count trends, sample
-            size, and how volatile the player is game to game. Early on, this rests on only a
+            were known: results so far this season, snap-count trends, injured teammates (the
+            odds already adjust for those), sample size, and how volatile the player is game to
+            game. Early on, this rests on only a
             few weeks of graded picks, so expect real results to land below the backtest.
             <p className="mt-2">
               Anytime TD works differently: nothing tested predicted it better than the odds, so
