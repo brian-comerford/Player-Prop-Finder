@@ -13,6 +13,7 @@ import analyze
 import analyze_games
 import fetch_game_odds
 import fetch_odds
+import fetch_projections
 import fetch_stats
 import fetch_team_stats
 from common import DATA_DIR
@@ -21,6 +22,15 @@ from common import DATA_DIR
 def main():
     print("== 1/5 fetching player stats & schedule ==")
     fetch_stats.main()
+    with open(os.path.join(DATA_DIR, "season_week.json")) as f:
+        season_week = json.load(f)
+    if season_week["upcoming_week"] is not None:
+        # Outside projections, saved for backtesting (fetch_projections.py);
+        # best-effort, never blocks the run.
+        try:
+            fetch_projections.save_week(season_week["upcoming_season"], season_week["upcoming_week"])
+        except Exception as exc:  # noqa: BLE001
+            print(f"  projections skipped ({exc})")
     print("\n== 2/5 fetching odds ==")
     fetch_odds.main()
     print("\n== 3/5 running value model ==")
