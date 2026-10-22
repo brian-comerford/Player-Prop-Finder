@@ -46,6 +46,9 @@ SPORT_KEY = "americanfootball_nfl"
 # cost to confirm.
 BOOKMAKERS = "draftkings,fanduel,fliff,novig,kalshi,polymarket"
 ODDS_FORMAT = "american"
+EXCHANGES = {"novig", "kalshi", "polymarket"}
+EXCHANGE_MAX_OVERROUND = 1.10
+EXCHANGE_PLACEHOLDER_PRICE = -2000
 
 
 def load_upcoming_slate():
@@ -137,7 +140,10 @@ def _parse_event_odds(payload):
             mkey = market["key"]
             if mkey not in MARKETS:
                 continue
-            for outcome in market.get("outcomes", []):
+            outcomes = market.get("outcomes", [])
+            if bm.get("key") in EXCHANGES:
+                outcomes = _drop_empty_exchange_quotes(outcomes)
+            for outcome in outcomes:
                 player = outcome.get("description")
                 if not player:
                     continue
@@ -208,6 +214,30 @@ def _parse_event_odds(payload):
                 }
             )
     return quotes
+
+
+def _implied(price):
+    return 100 / (price + 100) if price > 0 else -price / (-price + 100)
+
+
+def _drop_empty_exchange_quotes(outcomes):
+    """An exchange with nobody on one side still posts a placeholder price
+    (Polymarket shows -9900 on both sides of an empty Anytime TD market),
+    which would otherwise read as a real price. Drops a player/line whose
+    two sides imply more than EXCHANGE_MAX_OVERROUND together, or whose
+    only side is priced at EXCHANGE_PLACEHOLDER_PRICE or worse."""
+    by_key = {}
+    for o in outcomes:
+        by_key.setdefault((o.get("description"), o.get("point")), []).append(o)
+    kept = []
+    for group in by_key.values():
+        prices = [o.get("price") for o in group if o.get("price") is not None]
+        if len(prices) >= 2 and sum(_implied(p) for p in prices) > EXCHANGE_MAX_OVERROUND:
+            continue
+        if len(prices) == 1 and prices[0] <= EXCHANGE_PLACEHOLDER_PRICE:
+            continue
+        kept.extend(group)
+    return kept
 
 
 def _book_quotes(over, under, consensus_point):
