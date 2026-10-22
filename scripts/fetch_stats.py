@@ -35,6 +35,8 @@ GAP_SEASON_PBP_COLS = [
     "passing_yards",
     "pass_touchdown",
     "pass_attempt",
+    "sack",
+    "interception",
     "rusher_player_id",
     "rushing_yards",
     "rush_touchdown",
@@ -244,13 +246,16 @@ def build_recent_stats_from_pbp(seasons):
             )
             activity_frames.append(appearances)
 
+        # pbp's pass_attempt also flags sacks, which the official box score
+        # (and the books' Pass Attempts lines) don't count as attempts.
         passing = (
-            pbp[(pbp["pass_attempt"] == 1) & pbp["passer_player_id"].notna()]
+            pbp[(pbp["pass_attempt"] == 1) & (pbp["sack"] != 1) & pbp["passer_player_id"].notna()]
             .groupby(["passer_player_id", "season", "week"])
             .agg(
                 attempts=("pass_attempt", "sum"),
                 passing_yards=("passing_yards", "sum"),
                 passing_tds=("pass_touchdown", "sum"),
+                interceptions=("interception", "sum"),
                 recent_team=("posteam", "first"),
                 opponent_team=("defteam", "first"),
                 season_type=("season_type", "first"),
@@ -299,7 +304,7 @@ def build_recent_stats_from_pbp(seasons):
                     merged = merged.drop(columns=[other])
 
         stat_cols = [
-            "attempts", "passing_yards", "passing_tds",
+            "attempts", "passing_yards", "passing_tds", "interceptions",
             "carries", "rushing_yards", "rushing_tds",
             "targets", "receptions", "receiving_yards", "receiving_tds",
         ]

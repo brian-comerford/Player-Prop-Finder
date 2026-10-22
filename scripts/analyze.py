@@ -19,6 +19,7 @@ from common import (
     DATA_DIR,
     MARKETS,
     RECENCY_DECAY,
+    STATS_VERSION,
     SEASON_DECAY,
     american_to_implied_prob,
     game_weights,
@@ -385,6 +386,7 @@ def snapshot_current_week_picks(props, season, week):
             # can later be computed against what was actually offered
             # rather than an assumed standard vig.
             "price": p["price_over"] if p["recommended_side"] == "over" else p["price_under"],
+            "stats_version": STATS_VERSION,
         }
         for p in props
     ]
@@ -461,8 +463,11 @@ def grade_past_weeks(stats_df, games_df, current_season, current_week):
         results_path = os.path.join(HISTORY_DIR, fname.replace("picks_", "results_", 1))
         if os.path.exists(results_path):
             with open(results_path) as f:
-                if json.load(f).get("fully_graded"):
-                    continue
+                previous = json.load(f)
+            # A week graded before the latest stats fix is regraded once
+            # against the corrected stats.
+            if previous.get("fully_graded") and previous.get("stats_version", 1) >= STATS_VERSION:
+                continue
 
         finished_teams = completed_game_teams(games_df, season, week)
         graded = []
@@ -496,6 +501,7 @@ def grade_past_weeks(stats_df, games_df, current_season, current_week):
                     "week": week,
                     "graded_at": utcnow_iso(),
                     "fully_graded": fully_graded,
+                    "stats_version": STATS_VERSION,
                     "picks": graded,
                 },
                 f,

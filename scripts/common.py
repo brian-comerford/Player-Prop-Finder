@@ -262,6 +262,21 @@ def prob_to_american(p):
     return round(100 * (1 - p) / p)
 
 
+# Bumped whenever a stats-pipeline bug changed the numbers behind some
+# markets. STATS_FIXES says which markets each version corrected: picks
+# snapshotted before it were modeled on the wrong numbers, and results
+# graded before it are regraded (see analyze.grade_past_weeks).
+#   2: play-by-play seasons had no interceptions and counted sacks as
+#      pass attempts.
+STATS_VERSION = 2
+STATS_FIXES = {2: ("player_pass_interceptions", "player_pass_attempts")}
+
+
+def modeled_on_stale_stats(pick):
+    version = pick.get("stats_version", 1)
+    return any(version < v and pick["market"] in markets for v, markets in STATS_FIXES.items())
+
+
 def pick_units(price, hit):
     """Profit/loss in units for a flat 1-unit bet at these American odds --
     the real price the recommended side was quoted at, not an assumed
