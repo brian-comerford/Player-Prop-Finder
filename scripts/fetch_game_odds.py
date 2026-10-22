@@ -27,10 +27,8 @@ from common import DATA_DIR, TEAM_CODE_TO_NAME, TEAM_NAME_TO_CODE, utcnow_iso
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 SPORT_KEY = "americanfootball_nfl"
-# Kept in sync with fetch_odds.py's BOOKMAKERS -- see the comment there for
-# why adding a book outside "us" (e.g. fliff, in "us2") can cost extra
-# Odds API credits.
-BOOKMAKERS = "draftkings,fanduel,fliff"
+# Kept in sync with fetch_odds.py's BOOKMAKERS -- see the comment there.
+BOOKMAKERS = "draftkings,fanduel,fliff,novig,kalshi,polymarket"
 ODDS_FORMAT = "american"
 
 SEGMENT_MARKET_KEYS = {

@@ -113,9 +113,11 @@ export default function InfoPage({
           <Term term="Book">
             Which source the line and odds came from: DraftKings, FanDuel, Fliff (a sweepstakes
             sportsbook, not a traditional one &mdash; it uses its own virtual currency rather
-            than real-money wagers), or Kalshi (a federally-regulated prediction market, not a
-            sportsbook &mdash; its "odds" are derived from a contract price rather than posted
-            directly). When neither a book nor an API key is configured, this reads "Sample."
+            than real-money wagers), or one of three exchanges where bettors trade against each
+            other instead of against a house &mdash; Novig, Kalshi, and Polymarket &mdash; whose
+            "odds" are derived from a contract price and usually carry little or no vig when
+            there's someone on the other side. When neither a book nor an API key is configured,
+            this reads "Sample."
           </Term>
           <Term term="Odds">
             The odds for the picked side, in American format, from whichever book is shown in
@@ -395,9 +397,10 @@ export default function InfoPage({
           <a className="underline" href="https://the-odds-api.com/" target="_blank" rel="noreferrer">
             The Odds API
           </a>{" "}
-          when configured, restricted to DraftKings, FanDuel, and Fliff specifically (whichever
-          of the three has the better price for a given line) so what you see matches what you
-          could actually bet, rather than a blended number from books you may not have access to.
+          when configured, restricted to DraftKings, FanDuel, Fliff, and the Novig, Kalshi, and
+          Polymarket exchanges specifically (whichever has the best price for a given line) so
+          what you see matches what you could actually bet, rather than a blended number from
+          books you may not have access to.
           Kalshi markets, where available for a given player and stat, are pulled directly from{" "}
           <a className="underline" href="https://kalshi.com/" target="_blank" rel="noreferrer">
             Kalshi's
