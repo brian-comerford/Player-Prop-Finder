@@ -152,6 +152,7 @@ def _parse_event_odds(payload):
                     continue
                 price_yes, book_yes = _best_price(yes)
                 price_no, book_no = _best_price(no) if no else (None, None)
+                prices_no = {bk: pr for _, pr, bk in no}
                 quotes.append(
                     {
                         "player_name": player,
@@ -163,6 +164,10 @@ def _parse_event_odds(payload):
                         "price_under": price_no,
                         "book_over": book_yes,
                         "book_under": book_no,
+                        "book_quotes": [
+                            {"book": bk, "point": None, "over": pr, "under": prices_no.get(bk)}
+                            for _, pr, bk in yes
+                        ],
                     }
                 )
                 continue
@@ -192,9 +197,29 @@ def _parse_event_odds(payload):
                     "price_under": price_under,
                     "book_over": book_over,
                     "book_under": book_under,
+                    "book_quotes": _book_quotes(over, under, consensus_point),
                 }
             )
     return quotes
+
+
+def _book_quotes(over, under, consensus_point):
+    """Each book's own line and both prices, at the line it offers closest
+    to the consensus one -- kept so how much the books disagree can be
+    tested as a signal (the best price alone hides that)."""
+    by_book = {}
+    for pt, pr, bk in over:
+        by_book.setdefault(bk, {}).setdefault(pt, {})["over"] = pr
+    for pt, pr, bk in under:
+        by_book.setdefault(bk, {}).setdefault(pt, {})["under"] = pr
+    out = []
+    for bk, lines in by_book.items():
+        two_sided = [pt for pt, sides in lines.items() if pt is not None and "over" in sides and "under" in sides]
+        if not two_sided:
+            continue
+        pt = min(two_sided, key=lambda x: abs(x - consensus_point))
+        out.append({"book": bk, "point": pt, "over": lines[pt]["over"], "under": lines[pt]["under"]})
+    return out
 
 
 def _best_price(entries):

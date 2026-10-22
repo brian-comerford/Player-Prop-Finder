@@ -11,7 +11,7 @@ import statistics
 from collections import Counter
 
 import pandas as pd
-from scipy.stats import norm
+from scipy.stats import gamma, norm
 
 import confidence as pick_confidence
 
@@ -387,6 +387,10 @@ def snapshot_current_week_picks(props, season, week):
             # rather than an assumed standard vig.
             "price": p["price_over"] if p["recommended_side"] == "over" else p["price_under"],
             "stats_version": STATS_VERSION,
+            # Every book's own line and prices (fetch_odds._book_quotes), to
+            # test book disagreement as a confidence signal once enough
+            # weeks are graded.
+            "book_quotes": p.get("book_quotes"),
         }
         for p in props
     ]
@@ -814,11 +818,26 @@ def cap_anytime_td_high_confidence(props):
         p["confidence"] = "Medium"
 
 
-def project_probabilities(mean, std, line, binary=False):
+# Yardage is right-skewed -- lots of quiet games, a few huge ones -- so its
+# median sits below its mean, and a bell curve centered on the mean
+# overrates the Over. A gamma curve with the same mean and spread fixes
+# that. Rebuilt on 3,341 graded 2026 wk1-6 props (only pre-week data):
+# with a bell curve the model took the Over on 61% of yardage props
+# against an actual Over rate under 49%; with gamma, 40%, and probability
+# accuracy improved slightly (log loss 0.6833 vs 0.6839 blended at 15%).
+# Count markets (receptions, attempts, TDs) stay on the bell curve, where
+# gamma made no difference.
+SKEWED_MARKETS = {"player_pass_yds", "player_rush_yds", "player_reception_yds", "player_rush_reception_yds"}
+
+
+def project_probabilities(mean, std, line, binary=False, market=None):
     if binary:
         p_yes = min(max(mean, TD_PROB_BOUNDS[0]), TD_PROB_BOUNDS[1])
         return p_yes, 1 - p_yes
-    p_over = 1 - norm.cdf(line, loc=mean, scale=std)
+    if market in SKEWED_MARKETS and mean > 0:
+        p_over = float(gamma.sf(line, (mean / std) ** 2, scale=std**2 / mean))
+    else:
+        p_over = 1 - norm.cdf(line, loc=mean, scale=std)
     return p_over, 1 - p_over
 
 
@@ -954,7 +973,7 @@ def main():
         projected_mean = base["mean"] * factor
 
         raw_model_over, raw_model_under = project_probabilities(
-            projected_mean, base["std"], q["point"], binary=cfg.get("binary", False)
+            projected_mean, base["std"], q["point"], binary=cfg.get("binary", False), market=q["market"]
         )
 
         raw_over = american_to_implied_prob(q["price_over"])
@@ -1032,6 +1051,7 @@ def main():
                 "line": q["point"],
                 "book_over": q["book_over"],
                 "book_under": q["book_under"],
+                "book_quotes": q.get("book_quotes"),
                 "price_over": q["price_over"],
                 "price_under": q["price_under"],
                 "model_prob_over": round(model_over, 4),

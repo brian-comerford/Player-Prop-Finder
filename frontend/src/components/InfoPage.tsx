@@ -125,7 +125,9 @@ export default function InfoPage({
           <Term term="Model %">
             The model's estimated probability that the picked side happens. It starts from a
             projection built on the player's recent performance and an opponent-strength
-            adjustment, then gets blended with the sportsbook's own no-vig probability
+            adjustment (for yardage props, on a curve that allows for the occasional huge game
+            rather than a symmetric bell curve, since a player's typical game sits below their
+            average), then gets blended with the sportsbook's own no-vig probability
             (40% model, 60% market; 20% model for Anytime TD). On its own the projection was
             badly overconfident &mdash; picks it called 90%+ likely actually hit about 66% of the
             time &mdash; because the market already prices in things the model can't see, like
