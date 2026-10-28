@@ -47,6 +47,16 @@ export function sumUnits<T extends { price: number | null; hit: boolean }>(
   };
 }
 
+// The hit rate a set of picks needed to break even at the prices actually
+// taken (average implied probability of each price, vig included), or
+// null when none are priced.
+export function breakevenRate(picks: { price: number | null }[]): number | null {
+  const prices = picks.map((p) => p.price).filter((p): p is number => p !== null);
+  if (prices.length === 0) return null;
+  const implied = prices.map((a) => (a > 0 ? 100 / (a + 100) : -a / (-a + 100)));
+  return implied.reduce((x, y) => x + y, 0) / implied.length;
+}
+
 // Mirrors scripts/common.py's prob_to_american -- the American odds that
 // would exactly imply a given probability with no vig, e.g. 50% -> -100,
 // 40% -> +150. Used to show the model's own probability in odds terms

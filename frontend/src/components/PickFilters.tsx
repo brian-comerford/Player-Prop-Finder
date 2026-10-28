@@ -50,12 +50,14 @@ export default function PickFilters({
   marketOptions,
   sideLabels = { over: "Over", under: "Under" },
   hideSide = false,
+  hideConfidence = false,
 }: {
   filters: PickFilterState;
   onChange: (next: PickFilterState) => void;
   marketOptions: string[];
   sideLabels?: Record<Side, string>;
   hideSide?: boolean;
+  hideConfidence?: boolean;
 }) {
   const { minEdge, confidence, side, markets } = filters;
 
@@ -68,7 +70,11 @@ export default function PickFilters({
 
   return (
     <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-      <div className={`grid grid-cols-1 gap-3 ${hideSide ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+      <div
+        className={`grid grid-cols-1 gap-3 ${
+          ["sm:grid-cols-1", "sm:grid-cols-2", "sm:grid-cols-3"][2 - Number(hideSide) - Number(hideConfidence)]
+        }`}
+      >
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-slate-500 dark:text-slate-400">Min. edge: {(minEdge * 100).toFixed(1)}%</span>
           <input
@@ -81,6 +87,7 @@ export default function PickFilters({
             className="mt-2"
           />
         </label>
+        {!hideConfidence && (
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-slate-500 dark:text-slate-400">Confidence</span>
           <select
@@ -95,6 +102,7 @@ export default function PickFilters({
             ))}
           </select>
         </label>
+        )}
         {!hideSide && (
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-slate-500 dark:text-slate-400">Side</span>

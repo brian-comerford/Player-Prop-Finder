@@ -387,11 +387,12 @@ export default function App() {
               {tdProps && tdMeta && (
                 <>
                   <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                    Anytime TD is close to a coin flip and heavily dependent on game script, so
-                    it's tracked separately here -- High confidence is capped to at most 10% of
-                    the slate. See the Info tab.
+                    Anytime TD props carry no confidence rating. Nothing we&apos;ve tested
+                    &mdash; recent scoring, the opponent&apos;s defense, usage trends, red-zone
+                    share &mdash; predicted touchdowns better than the odds already do, so these
+                    are listed for information, not as recommended bets. See the Info tab.
                   </div>
-                  <Filters meta={tdMeta} filters={tdFilters} onChange={setTdFilters} />
+                  <Filters meta={tdMeta} filters={tdFilters} onChange={setTdFilters} showConfidence={false} />
                   <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
                     <span>
                       Showing {filteredTd.length} of {tdProps.length} props
@@ -412,12 +413,20 @@ export default function App() {
                     </div>
                   </div>
                   <div ref={tableWrapperRef}>
-                    <PropsTable props={filteredTd} onSelect={setSelected} />
+                    <PropsTable props={filteredTd} onSelect={setSelected} showConfidence={false} />
                   </div>
                   <TrackRecordSection
                     trackRecord={tdTrackRecord}
                     fetchDetail={fetchAnytimeTdTrackRecordDetail}
                     label="Track record"
+                    showConfidence={false}
+                    note={
+                      <>
+                        This counts every Anytime TD prop listed, at the best price offered, not a
+                        hand-picked set of bets &mdash; so its losses mostly reflect the sportsbooks&apos;
+                        cut on touchdown bets rather than how the picks were chosen.
+                      </>
+                    }
                   />
                 </>
               )}

@@ -71,10 +71,11 @@ export default function PropDetail({ prop, onClose }: { prop: Prop; onClose: () 
           <Stat label="Model probability" value={formatPctWithOdds(sideModelProb(prop, side))} />
           <Stat label="Book implied (no-vig)" value={formatPct(sideImpliedProb(prop, side))} />
           <Stat label="Opponent factor" value={`${prop.defense_factor}x`} />
-          <Stat
-            label="Confidence"
-            value={binary ? `${prop.confidence} (${prop.sample_games}g)` : prop.confidence}
-          />
+          {binary ? (
+            <Stat label="Sample" value={`${prop.sample_games} games`} />
+          ) : (
+            <Stat label="Confidence" value={prop.confidence} />
+          )}
           {prop.espn_projected_value !== null && (
             <Stat
               label="ESPN 2nd opinion"
@@ -84,7 +85,7 @@ export default function PropDetail({ prop, onClose }: { prop: Prop; onClose: () 
           )}
         </div>
 
-        {prop.confidence_reasons.length > 0 && (
+        {!binary && prop.confidence_reasons.length > 0 && (
           <div className="mb-5 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
             <p className="mb-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
               Why {prop.confidence} confidence

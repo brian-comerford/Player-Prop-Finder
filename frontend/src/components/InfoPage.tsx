@@ -95,8 +95,8 @@ export default function InfoPage({
           Anytime TD lives in its own tab, separate from every other player-prop market. It's
           close to a coin flip for most players and depends heavily on things the model can't
           see week to week &mdash; game script, a specific week's red zone role, goal-line
-          packages &mdash; so it's held to a stricter confidence bar and tracked with its own
-          record rather than blended into the main one; see Confidence and Track record below.
+          packages &mdash; so it carries no confidence rating and is tracked with its own record
+          rather than blended into the main one; see Confidence and Track record below.
         </p>
       </Section>
 
@@ -186,10 +186,12 @@ export default function InfoPage({
             game. Early on, this rests on only a
             few weeks of graded picks, so expect real results to land below the backtest.
             <p className="mt-2">
-              Anytime TD works differently: nothing tested predicted it better than the odds, so
-              it keeps a simpler rating based on how many games (shown as e.g. &quot;7g&quot;)
-              and how consistent the player has been, shifted by ESPN&apos;s projection where
-              available, with no more than 10% of a week&apos;s Anytime TD props rated High.
+              Anytime TD props have no confidence rating. The same model was backtested on
+              1,693 graded Anytime TD picks from weeks 1&ndash;7 of 2026, along with a
+              red-zone usage signal built for touchdowns, and nothing predicted scoring better than
+              the odds: every tier lost money, and the old rating&apos;s &quot;High&quot; tier did
+              worst. Rather than label any of them &quot;High confidence,&quot; the tab lists them
+              for information only.
             </p>
             <ConfidenceBacktest />
           </Term>
@@ -261,10 +263,10 @@ export default function InfoPage({
             line sitting between them. Only when ESPN lands on the same side does it get graded
             by how close the two numbers are: &quot;agrees&quot; or &quot;roughly agrees.&quot;
             Two independently-built projections landing in the same place is modest evidence the
-            number isn't a fluke, and a real disagreement is a reason for more caution. On the
-            Anytime TD tab each shifts Confidence by at most one tier, in that direction. For
-            other props it's shown for reference only: ESPN's projections weren't saved with
-            past picks, so the confidence model has no record yet of whether they help. Missing
+            number isn't a fluke, and a real disagreement is a reason for more caution. It's shown
+            for reference only: tested against the props' outcomes, ESPN&apos;s and
+            Sleeper&apos;s projections added nothing beyond the odds, so they don't feed the
+            confidence model. Missing
             for players ESPN hasn't projected for that week yet, or for
             Anytime TD (a yes/no market with no line for ESPN's number to cross, so it falls
             back to a plain numeric comparison there).
@@ -333,7 +335,10 @@ export default function InfoPage({
           lower than every other market's (see the note on the Anytime TD tab) and would
           otherwise drag the main player-prop number down in a way that obscures how the other
           markets are actually doing, and game bets are a different kind of pick entirely
-          (team-level, not player-level).
+          (team-level, not player-level). The Anytime TD record counts every TD prop listed
+          rather than a hand-picked set, so it mostly measures the sportsbooks&apos; cut on
+          touchdown bets &mdash; its panel shows the hit rate the prices needed to break even
+          next to the hit rate the picks actually got.
         </p>
         <p>
           For every player and stat, the recommended side is saved right before that specific

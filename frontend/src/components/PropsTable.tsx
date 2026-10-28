@@ -21,9 +21,12 @@ function propKey(p: Prop): string {
 export default function PropsTable({
   props,
   onSelect,
+  showConfidence = true,
 }: {
   props: Prop[];
   onSelect: (prop: Prop) => void;
+  // Off for Anytime TD, which carries no confidence rating.
+  showConfidence?: boolean;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -61,7 +64,7 @@ export default function PropsTable({
             <th className="px-3 py-2 font-medium">Model %</th>
             <th className="px-3 py-2 font-medium">Book %</th>
             <th className="px-3 py-2 font-medium">Edge</th>
-            <th className="px-3 py-2 font-medium">Confidence</th>
+            {showConfidence && <th className="px-3 py-2 font-medium">Confidence</th>}
           </tr>
         </thead>
         <tbody>
@@ -129,18 +132,20 @@ export default function PropsTable({
                   <td className={`px-3 py-2 ${edgeColorClass(sideEdge(p, side) ?? 0)}`}>
                     {formatPct(sideEdge(p, side))}
                   </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${confidenceColorClass(p.confidence)}`}
-                    >
-                      {p.confidence}
-                      {binary && <> &middot; {p.sample_games}g</>}
-                    </span>
-                  </td>
+                  {showConfidence && (
+                    <td className="px-3 py-2">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${confidenceColorClass(p.confidence)}`}
+                      >
+                        {p.confidence}
+                        {binary && <> &middot; {p.sample_games}g</>}
+                      </span>
+                    </td>
+                  )}
                 </tr>
                 {hasTrends && isExpanded && (
                   <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800/60 dark:bg-slate-900/40">
-                    <td colSpan={10} className="px-3 py-2 pl-11">
+                    <td colSpan={showConfidence ? 10 : 9} className="px-3 py-2 pl-11">
                       <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
                         {p.trends.map((trend, i) => (
                           <li key={i} className="flex items-start gap-1.5">
