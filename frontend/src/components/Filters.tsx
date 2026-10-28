@@ -39,10 +39,13 @@ export default function Filters({
   meta,
   filters,
   onChange,
+  showConfidence = true,
 }: {
   meta: Meta;
   filters: FilterState;
   onChange: (next: FilterState) => void;
+  // Off for Anytime TD, which carries no confidence rating.
+  showConfidence?: boolean;
 }) {
   const set = <K extends keyof FilterState>(key: K, value: FilterState[K]) =>
     onChange({ ...filters, [key]: value });
@@ -137,6 +140,7 @@ export default function Filters({
           />
         </label>
 
+        {showConfidence && (
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-slate-500 dark:text-slate-400">Min. confidence</span>
           <select
@@ -149,6 +153,7 @@ export default function Filters({
             <option value="High">High only</option>
           </select>
         </label>
+        )}
       </div>
 
       <div className="mt-3 flex flex-col gap-1.5 text-sm">

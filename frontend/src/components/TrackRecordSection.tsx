@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { Confidence, GradedPick, TrackRecord, TrackRecordDetail } from "../lib/types";
 import { formatUnits } from "../lib/format";
-import { sumUnits } from "../lib/odds";
+import { breakevenRate, sumUnits } from "../lib/odds";
 import { useLockBodyScroll } from "../lib/useLockBodyScroll";
 import PickFilters, {
   DEFAULT_PICK_FILTERS,
@@ -58,10 +58,16 @@ export default function TrackRecordSection({
   trackRecord,
   fetchDetail,
   label = "Track record",
+  showConfidence = true,
+  note,
 }: {
   trackRecord: TrackRecord | null;
   fetchDetail: () => Promise<TrackRecordDetail>;
   label?: string;
+  // Off for Anytime TD, which carries no confidence rating; the panel then
+  // also shows the break-even hit rate at the prices taken.
+  showConfidence?: boolean;
+  note?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<TrackRecordDetail | null>(null);
@@ -102,6 +108,8 @@ export default function TrackRecordSection({
           loading={loading}
           error={error}
           label={label}
+          showConfidence={showConfidence}
+          note={note}
           onClose={() => setOpen(false)}
         />
       )}
@@ -115,6 +123,8 @@ function TrackRecordPanel({
   loading,
   error,
   label,
+  showConfidence,
+  note,
   onClose,
 }: {
   trackRecord: TrackRecord;
@@ -122,6 +132,8 @@ function TrackRecordPanel({
   loading: boolean;
   error: string | null;
   label: string;
+  showConfidence: boolean;
+  note?: ReactNode;
   onClose: () => void;
 }) {
   useLockBodyScroll();
@@ -159,6 +171,7 @@ function TrackRecordPanel({
 
   const weekGroups = useMemo(() => groupByWeek(filteredPicks), [filteredPicks]);
   const filtersActive = pickFiltersActive(filters);
+  const overallBreakeven = useMemo(() => (detail ? breakevenRate(detail.picks) : null), [detail]);
 
   function toggleWeek(key: string) {
     setExpandedWeeks((prev) => {
@@ -204,7 +217,7 @@ function TrackRecordPanel({
               {overall.priced_picks < overall.picks && ` (${overall.priced_picks} priced picks)`}
             </>
           )}
-          {CONFIDENCE_TIERS.some((tier) => trackRecord.by_confidence[tier]) && (
+          {showConfidence && CONFIDENCE_TIERS.some((tier) => trackRecord.by_confidence[tier]) && (
             <>
               {" · "}
               {CONFIDENCE_TIERS.filter((tier) => trackRecord.by_confidence[tier])
@@ -213,6 +226,19 @@ function TrackRecordPanel({
             </>
           )}
         </div>
+
+        {note && (
+          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+            {note}
+            {!showConfidence && overallBreakeven !== null && (
+              <>
+                {" "}
+                So far these picks have hit <strong>{pct(overall.hit_rate)}</strong>; at the prices offered they
+                needed <strong>{pct(overallBreakeven)}</strong> to break even.
+              </>
+            )}
+          </div>
+        )}
 
         {loading && (
           <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">Loading graded picks…</p>
@@ -229,6 +255,7 @@ function TrackRecordPanel({
               marketOptions={marketOptions}
               sideLabels={isAnytimeTd ? { over: "Yes (scores)", under: "No TD" } : undefined}
               hideSide={new Set(detail.picks.map((p) => p.side)).size < 2}
+              hideConfidence={!showConfidence}
             />
 
             {filtersActive && (
