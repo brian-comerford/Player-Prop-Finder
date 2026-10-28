@@ -31,7 +31,7 @@ from collections import Counter
 import pandas as pd
 import requests
 
-from common import DATA_DIR, MARKETS, TEAM_CODE_TO_NAME, TEAM_NAME_TO_CODE, utcnow_iso
+from common import DATA_DIR, event_not_started, MARKETS, TEAM_CODE_TO_NAME, TEAM_NAME_TO_CODE, utcnow_iso
 from kalshi import fetch_kalshi_quotes
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
@@ -79,7 +79,8 @@ def fetch_live(slate, api_key):
         for g in slate.itertuples()
     }
     relevant_events = [
-        e for e in events if frozenset((e["home_team"], e["away_team"])) in slate_matchups
+        e for e in events
+        if frozenset((e["home_team"], e["away_team"])) in slate_matchups and event_not_started(e)
     ]
     print(f"Found {len(relevant_events)} relevant events out of {len(events)} total")
 
@@ -142,7 +143,7 @@ def _parse_event_odds(payload):
                 continue
             outcomes = market.get("outcomes", [])
             if bm.get("key") in EXCHANGES:
-                outcomes = _drop_empty_exchange_quotes(outcomes)
+                outcomes = _drop_empty_exchange_quotes(outcomes, MARKETS[mkey].get("binary", False))
             for outcome in outcomes:
                 player = outcome.get("description")
                 if not player:
@@ -220,12 +221,15 @@ def _implied(price):
     return 100 / (price + 100) if price > 0 else -price / (-price + 100)
 
 
-def _drop_empty_exchange_quotes(outcomes):
+def _drop_empty_exchange_quotes(outcomes, binary):
     """An exchange with nobody on one side still posts a placeholder price
     (Polymarket shows -9900 on both sides of an empty Anytime TD market),
     which would otherwise read as a real price. Drops a player/line whose
     two sides imply more than EXCHANGE_MAX_OVERROUND together, or whose
-    only side is priced at EXCHANGE_PLACEHOLDER_PRICE or worse."""
+    only side is priced at EXCHANGE_PLACEHOLDER_PRICE or worse. For
+    over/under markets a one-sided exchange line is dropped outright: it's
+    a lone resting order (Novig once showed Over 10.5 at +120 while every
+    book had it near -110), not a market."""
     by_key = {}
     for o in outcomes:
         by_key.setdefault((o.get("description"), o.get("point")), []).append(o)
@@ -234,7 +238,7 @@ def _drop_empty_exchange_quotes(outcomes):
         prices = [o.get("price") for o in group if o.get("price") is not None]
         if len(prices) >= 2 and sum(_implied(p) for p in prices) > EXCHANGE_MAX_OVERROUND:
             continue
-        if len(prices) == 1 and prices[0] <= EXCHANGE_PLACEHOLDER_PRICE:
+        if len(prices) == 1 and (not binary or prices[0] <= EXCHANGE_PLACEHOLDER_PRICE):
             continue
         kept.extend(group)
     return kept
