@@ -23,7 +23,7 @@ import time
 import pandas as pd
 import requests
 
-from common import DATA_DIR, TEAM_CODE_TO_NAME, TEAM_NAME_TO_CODE, utcnow_iso
+from common import DATA_DIR, event_not_started, TEAM_CODE_TO_NAME, TEAM_NAME_TO_CODE, utcnow_iso
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 SPORT_KEY = "americanfootball_nfl"
@@ -66,7 +66,8 @@ def fetch_live(slate, api_key):
         for g in slate.itertuples()
     }
     relevant_events = [
-        e for e in events if frozenset((e["home_team"], e["away_team"])) in slate_matchups
+        e for e in events
+        if frozenset((e["home_team"], e["away_team"])) in slate_matchups and event_not_started(e)
     ]
     print(f"Found {len(relevant_events)} relevant events out of {len(events)} total")
 

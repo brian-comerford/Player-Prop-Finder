@@ -277,6 +277,18 @@ def modeled_on_stale_stats(pick):
     return any(version < v and pick["market"] in markets for v, markets in STATS_FIXES.items())
 
 
+def event_not_started(event, now=None):
+    """True for an Odds API event whose kickoff is still ahead. Its events
+    list includes games in progress, and their odds are live in-game lines,
+    which must never overwrite a pick frozen before kickoff (a delayed run
+    on a Sunday can start after the 1 PM games)."""
+    commence = event.get("commence_time")
+    if not commence:
+        return True
+    kickoff = dt.datetime.fromisoformat(commence.replace("Z", "+00:00"))
+    return kickoff > (now or dt.datetime.now(dt.timezone.utc))
+
+
 def pick_units(price, hit):
     """Profit/loss in units for a flat 1-unit bet at these American odds --
     the real price the recommended side was quoted at, not an assumed
