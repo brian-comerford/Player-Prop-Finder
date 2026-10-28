@@ -268,8 +268,12 @@ def prob_to_american(p):
 # graded before it are regraded (see analyze.grade_past_weeks).
 #   2: play-by-play seasons had no interceptions and counted sacks as
 #      pass attempts.
-STATS_VERSION = 2
-STATS_FIXES = {2: ("player_pass_interceptions", "player_pass_attempts")}
+#   3: 2025-26 stats come from nflverse's official weekly release instead of
+#      our own play-by-play totals (small drifts, e.g. a 14-yard gap on one
+#      receiving line). Regrades everything once; no market's picks were
+#      modeled on wrong enough numbers to leave out of training.
+STATS_VERSION = 3
+STATS_FIXES = {2: ("player_pass_interceptions", "player_pass_attempts"), 3: ()}
 
 
 def modeled_on_stale_stats(pick):

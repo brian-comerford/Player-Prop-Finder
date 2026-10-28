@@ -339,6 +339,86 @@ def build_recent_stats_from_pbp(seasons):
     return stats_df, activity
 
 
+OFFICIAL_WEEKLY_URL_TEMPLATE = (
+    "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_{season}.csv"
+)
+# nflverse's newer weekly release -> the columns the rest of the pipeline
+# reads (named as in the older player_stats release used for 2023-24).
+OFFICIAL_COLUMNS = {
+    "player_id": "player_id", "player_display_name": "player_display_name", "position": "position",
+    "season": "season", "week": "week", "season_type": "season_type",
+    "team": "recent_team", "opponent_team": "opponent_team",
+    "completions": "completions", "attempts": "attempts", "passing_yards": "passing_yards",
+    "passing_tds": "passing_tds", "passing_interceptions": "interceptions",
+    "carries": "carries", "rushing_yards": "rushing_yards", "rushing_tds": "rushing_tds",
+    "targets": "targets", "receptions": "receptions", "receiving_yards": "receiving_yards",
+    "receiving_tds": "receiving_tds",
+}
+
+
+OFFENSIVE_POSITIONS = {"QB", "RB", "FB", "WR", "TE"}
+TWO_WAY_MIN_TOUCHES = 5
+
+
+def load_official_weekly(season):
+    """nflverse's official per-game player stats for `season` (its
+    stats_player release), or an empty frame if it isn't published or
+    can't be read. Preferred over our own play-by-play aggregation, which
+    once missed interceptions entirely and counted sacks as pass attempts,
+    and still drifts on edge cases (laterals, some penalty plays)."""
+    dest = os.path.join(RAW_DIR, f"stats_player_week_{season}.csv")
+    try:
+        download(OFFICIAL_WEEKLY_URL_TEMPLATE.format(season=season), dest)
+        df = pd.read_csv(dest, low_memory=False, usecols=lambda c: c in OFFICIAL_COLUMNS)
+    except (requests.RequestException, ValueError) as exc:
+        print(f"  no official weekly stats for {season} ({exc}); using play-by-play totals")
+        return pd.DataFrame()
+    finally:
+        if os.path.exists(dest):
+            os.remove(dest)
+    df = df.rename(columns=OFFICIAL_COLUMNS)
+    # Offense only, like the older player_stats release: defensive and
+    # special-teams rows would pad every league average with zeros.
+    df = df[df["season_type"].isin(["REG", "POST"])]
+    # ...but keep a two-way player (e.g. Travis Hunter, listed CB) for every
+    # game of a season he had a real offensive role in (TWO_WAY_MIN_TOUCHES;
+    # a punter's fake or a lineman's trick play doesn't count) -- a game he played
+    # only on defense still counts as played (0 targets), the way a book
+    # grades it -- as a receiver or runner by what he did on offense.
+    off_stats = df[["attempts", "carries", "targets"]].fillna(0)
+    season_touches = off_stats.sum(axis=1).groupby(df["player_id"]).transform("sum")
+    season_targets = off_stats["targets"].groupby(df["player_id"]).transform("sum")
+    two_way = ~df["position"].isin(OFFENSIVE_POSITIONS) & (season_touches >= TWO_WAY_MIN_TOUCHES)
+    df.loc[two_way, "position"] = season_targets[two_way].gt(0).map({True: "WR", False: "RB"})
+    df = df[df["position"].isin(OFFENSIVE_POSITIONS)]
+    stat_cols = [c for c in OFFICIAL_COLUMNS.values() if c not in (
+        "player_id", "player_display_name", "position", "season", "week", "season_type",
+        "recent_team", "opponent_team")]
+    df[stat_cols] = df[stat_cols].fillna(0.0)
+    return df
+
+
+def prefer_official(pbp_stats, official):
+    """Official rows for every team-game the official file has, and our
+    play-by-play rows only for team-games it hasn't posted yet (it can lag
+    the latest games by a day or so). `stats_source` records which, so
+    grading can wait for the official numbers before freezing a week."""
+    if official.empty:
+        return pbp_stats.assign(stats_source="pbp")
+    keys = ["season", "week", "recent_team"]
+    covered = set(map(tuple, official[keys].drop_duplicates().itertuples(index=False, name=None)))
+    fallback = pbp_stats[
+        [k not in covered for k in map(tuple, pbp_stats[keys].itertuples(index=False, name=None))]
+    ]
+    if len(fallback):
+        games = fallback[keys].drop_duplicates().sort_values(keys)
+        print(f"  official stats not posted yet for {len(games)} team-games; using play-by-play totals for those")
+    return pd.concat(
+        [official.assign(stats_source="official"), fallback.assign(stats_source="pbp")],
+        ignore_index=True,
+    )
+
+
 def main():
     os.makedirs(RAW_DIR, exist_ok=True)
 
@@ -372,10 +452,19 @@ def main():
         else range(0)
     )
     gap_stats, activity = build_recent_stats_from_pbp(gap_seasons)
+    official = [load_official_weekly(season) for season in gap_seasons]
+    official = [df for df in official if not df.empty]
+    if official:
+        official = pd.concat(official, ignore_index=True)
+        print(f"  Official weekly stats: {len(official):,} player-game rows")
+        gap_stats = prefer_official(gap_stats, official)
+    elif not gap_stats.empty:
+        gap_stats = gap_stats.assign(stats_source="pbp")
     if not gap_stats.empty:
         print(
-            f"  Aggregated {len(gap_stats):,} player-game rows from play-by-play "
-            f"for seasons {list(gap_seasons)}"
+            f"  {len(gap_stats):,} player-game rows for seasons {list(gap_seasons)} "
+            f"({(gap_stats['stats_source'] == 'official').sum():,} official, "
+            f"{(gap_stats['stats_source'] == 'pbp').sum():,} play-by-play)"
         )
         filtered = pd.concat([filtered, gap_stats], ignore_index=True)
 

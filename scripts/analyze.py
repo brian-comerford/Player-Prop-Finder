@@ -503,7 +503,16 @@ def grade_past_weeks(stats_df, games_df, current_season, current_week):
                 margin = round((actual - pick["line"]) if pick["side"] == "over" else (pick["line"] - actual), 1)
             graded.append({**pick, "actual_value": round(actual, 1), "hit": hit, "margin": margin})
 
-        fully_graded = pending == 0
+        # Don't freeze a week on play-by-play fallback totals while the
+        # official stats for one of its games are still to come.
+        awaiting_official = False
+        if "stats_source" in stats_df.columns:
+            season_rows = stats_df[stats_df["season"] == season]
+            if (season_rows["stats_source"] == "official").any():
+                week_rows = season_rows[season_rows["week"] == week]
+                official_teams = set(week_rows.loc[week_rows["stats_source"] == "official", "recent_team"])
+                awaiting_official = any(team not in official_teams for team in finished_teams)
+        fully_graded = pending == 0 and not awaiting_official
         with open(results_path, "w") as f:
             json.dump(
                 {
@@ -516,7 +525,12 @@ def grade_past_weeks(stats_df, games_df, current_season, current_week):
                 },
                 f,
             )
-        status = "fully graded" if fully_graded else f"{pending} picks still pending (games not final yet)"
+        if fully_graded:
+            status = "fully graded"
+        elif pending:
+            status = f"{pending} picks still pending (games not final yet)"
+        else:
+            status = "all games final; regrading until the official stats cover every game"
         print(f"  Graded {season} wk{week}: {len(graded)}/{len(snapshot['picks'])} picks ({status})")
 
 
