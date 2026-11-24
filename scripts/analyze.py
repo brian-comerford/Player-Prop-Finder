@@ -665,35 +665,31 @@ def build_track_record_detail(market_filter=None):
 
 def classify_time_slot(weekday, gametime):
     """A human-recognizable NFL broadcast window from a game's weekday and
-    ET kickoff time (games.csv gives both already in Eastern time)."""
-    if weekday == "Thursday":
-        return "Thursday Night"
-    if weekday == "Monday":
-        return "Monday Night"
-    if weekday in ("Friday", "Saturday"):
-        return weekday
+    ET kickoff time (games.csv gives both already in Eastern time). Every
+    day gets the same early / afternoon / night split, so an unusual slate
+    -- a Wednesday opener, three Thanksgiving games, Black Friday,
+    late-season Saturdays, Christmas -- still sorts each game into its own
+    window. A normal week reads as before: Thursday Night, the Sunday
+    windows, Monday Night."""
+    try:
+        hour = int(str(gametime).split(":")[0])
+    except (ValueError, IndexError):
+        return weekday or "Other"
+    if not weekday:
+        return "Other"
     if weekday == "Sunday":
-        try:
-            hour = int(str(gametime).split(":")[0])
-        except (ValueError, IndexError):
-            return "Sunday"
+        if hour < 12:
+            return "Sunday Morning (International)"
         if hour < 14:
             return "Sunday Early (1:00 PM ET)"
         if hour < 18:
             return "Sunday Afternoon"
         return "Sunday Night"
-    return weekday or "Other"
-
-
-TIME_SLOT_ORDER = [
-    "Thursday Night",
-    "Friday",
-    "Saturday",
-    "Sunday Early (1:00 PM ET)",
-    "Sunday Afternoon",
-    "Sunday Night",
-    "Monday Night",
-]
+    if hour < 14:
+        return f"{weekday} Early"
+    if hour < 18:
+        return f"{weekday} Afternoon"
+    return f"{weekday} Night"
 
 
 def confidence_label(games, mean, std):
@@ -896,6 +892,7 @@ def main():
 
     game_lookup = {}
     matchup_options = []
+    time_slots_in_order = []
     if season_week["upcoming_season"] is not None and not games.empty:
         slate = games[
             (games["season"] == season_week["upcoming_season"])
@@ -904,6 +901,7 @@ def main():
         for g in slate.itertuples():
             matchup = f"{g.away_team} @ {g.home_team}"
             time_slot = classify_time_slot(g.weekday, g.gametime)
+            time_slots_in_order.append(time_slot)
             info = {
                 "matchup": matchup,
                 "game_date": g.gameday,
@@ -1176,9 +1174,9 @@ def main():
         "odds_fetched_at": odds_meta["fetched_at"],
         "inactive_players_excluded": len(inactive_players),
         "matchups": matchup_options,
-        "time_slots": [
-            t for t in TIME_SLOT_ORDER if t in {info["time_slot"] for info in game_lookup.values()}
-        ],
+        # In kickoff order (the slate is sorted by date and time), so the
+        # filter lists whatever windows this week has, unusual days included.
+        "time_slots": list(dict.fromkeys(time_slots_in_order)),
         "books": books,
     }
     meta = {**shared_meta, "prop_count": len(player_props), "markets": non_td_markets}
