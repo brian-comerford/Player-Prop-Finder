@@ -12,7 +12,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-2">
       <h2 className="text-lg font-semibold">{title}</h2>
-      <div className="space-y-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+      <div className="max-w-[70ch] space-y-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
         {children}
       </div>
     </section>
@@ -48,7 +48,7 @@ export default function InfoPage({
               key={value}
               onClick={() => onThemeChange(value)}
               aria-pressed={theme === value}
-              className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`press px-4 py-2 text-sm font-medium sm:px-3 sm:py-1.5 ${
                 theme === value
                   ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
                   : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"

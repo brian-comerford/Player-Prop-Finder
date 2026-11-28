@@ -71,11 +71,11 @@ export default function PickFilters({
   return (
     <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
       <div
-        className={`grid grid-cols-1 gap-3 ${
+        className={`grid grid-cols-2 gap-3 ${
           ["sm:grid-cols-1", "sm:grid-cols-2", "sm:grid-cols-3"][2 - Number(hideSide) - Number(hideConfidence)]
         }`}
       >
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="col-span-2 flex flex-col gap-1 text-sm sm:col-span-1">
           <span className="text-slate-500 dark:text-slate-400">Min. edge: {(minEdge * 100).toFixed(1)}%</span>
           <input
             type="range"
@@ -93,7 +93,7 @@ export default function PickFilters({
           <select
             value={confidence}
             onChange={(e) => onChange({ ...filters, confidence: e.target.value as Confidence | "All" })}
-            className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+            className="h-10 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
           >
             {CONFIDENCE_OPTIONS.map((c) => (
               <option key={c} value={c}>
@@ -109,7 +109,7 @@ export default function PickFilters({
             <select
               value={side}
               onChange={(e) => onChange({ ...filters, side: e.target.value as Side | "All" })}
-              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+              className="h-10 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
             >
               <option value="All">All</option>
               <option value="over">{sideLabels.over}</option>

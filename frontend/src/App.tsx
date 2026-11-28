@@ -86,6 +86,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("props");
   const [exporting, setExporting] = useState(false);
   const tableWrapperRef = useRef<HTMLDivElement>(null);
+  const tabsAnchorRef = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
@@ -179,6 +180,16 @@ export default function App() {
       )
       .sort((a, b) => b.recommended_edge - a.recommended_edge);
   }, [gameProps, gameFilters]);
+
+  function selectTab(next: Tab) {
+    setTab(next);
+    // Scrolled past the (now sticky) tab bar: start the new tab at its top
+    // rather than somewhere in the middle of it.
+    const anchor = tabsAnchorRef.current;
+    if (!anchor) return;
+    const top = anchor.getBoundingClientRect().top + window.scrollY;
+    if (window.scrollY > top) window.scrollTo({ top });
+  }
 
   const activeRows =
     tab === "games" ? filteredGames : tab === "props" ? filtered : tab === "td" ? filteredTd : [];
@@ -311,7 +322,7 @@ export default function App() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-6xl px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-6">
       {error && (
         <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
           Couldn't load prop data ({error}). If you're running this locally, make sure you've
@@ -327,20 +338,27 @@ export default function App() {
         <div className="space-y-5">
           <Banner meta={meta} />
 
-          <div className="flex gap-1 border-b border-slate-200 dark:border-slate-800">
-            {(["props", "td", "games", "info"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-                  tab === t
-                    ? "border-slate-900 text-slate-900 dark:border-white dark:text-white"
-                    : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-                }`}
-              >
-                {t === "props" ? "Props" : t === "td" ? "Anytime TD" : t === "games" ? "Games" : "Info"}
-              </button>
-            ))}
+          {/* Marks where the tab bar sits before it sticks, so switching tabs
+              while scrolled down can jump back to the top of the new tab. */}
+          <div ref={tabsAnchorRef} aria-hidden="true" />
+          <div className="sticky top-0 z-20 -mx-4 !mt-0 border-b border-slate-200 bg-slate-50/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-md backdrop-saturate-150 dark:border-slate-800 dark:bg-slate-950/80 sm:-mx-6 sm:px-6">
+            <div role="tablist" className="-mb-px flex gap-1 overflow-x-auto [scrollbar-width:none]">
+              {(["props", "td", "games", "info"] as const).map((t) => (
+                <button
+                  key={t}
+                  role="tab"
+                  aria-selected={tab === t}
+                  onClick={() => selectTab(t)}
+                  className={`press shrink-0 border-b-2 px-3 py-3 text-sm font-medium sm:py-2.5 ${
+                    tab === t
+                      ? "border-slate-900 text-slate-900 dark:border-white dark:text-white"
+                      : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                >
+                  {t === "props" ? "Props" : t === "td" ? "Anytime TD" : t === "games" ? "Games" : "Info"}
+                </button>
+              ))}
+            </div>
           </div>
 
           {tab === "props" && (
@@ -353,13 +371,14 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   {filtered.length > EXPORT_ROW_LIMIT && (
                     <span className="text-xs text-amber-600 dark:text-amber-400">
-                      Narrow your filters to {EXPORT_ROW_LIMIT} or fewer props to save an image
+                      <span className="sm:hidden">{EXPORT_ROW_LIMIT} max to save an image</span>
+                      <span className="hidden sm:inline">Narrow your filters to {EXPORT_ROW_LIMIT} or fewer props to save an image</span>
                     </span>
                   )}
                   <button
                     onClick={handleExportImage}
                     disabled={exporting || filtered.length === 0 || filtered.length > EXPORT_ROW_LIMIT}
-                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    className="press rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:py-1.5"
                   >
                     {exporting ? "Saving…" : "Save image"}
                   </button>
@@ -392,7 +411,13 @@ export default function App() {
                     share &mdash; predicted touchdowns better than the odds already do, so these
                     are listed for information, not as recommended bets. See the Info tab.
                   </div>
-                  <Filters meta={tdMeta} filters={tdFilters} onChange={setTdFilters} showConfidence={false} />
+                  <Filters
+                    meta={tdMeta}
+                    filters={tdFilters}
+                    onChange={setTdFilters}
+                    showConfidence={false}
+                    defaults={DEFAULT_TD_FILTERS}
+                  />
                   <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
                     <span>
                       Showing {filteredTd.length} of {tdProps.length} props
@@ -400,13 +425,14 @@ export default function App() {
                     <div className="flex items-center gap-2">
                       {filteredTd.length > EXPORT_ROW_LIMIT && (
                         <span className="text-xs text-amber-600 dark:text-amber-400">
-                          Narrow your filters to {EXPORT_ROW_LIMIT} or fewer props to save an image
+                          <span className="sm:hidden">{EXPORT_ROW_LIMIT} max to save an image</span>
+                      <span className="hidden sm:inline">Narrow your filters to {EXPORT_ROW_LIMIT} or fewer props to save an image</span>
                         </span>
                       )}
                       <button
                         onClick={handleExportImage}
                         disabled={exporting || filteredTd.length === 0 || filteredTd.length > EXPORT_ROW_LIMIT}
-                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        className="press rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:py-1.5"
                       >
                         {exporting ? "Saving…" : "Save image"}
                       </button>
@@ -462,13 +488,14 @@ export default function App() {
                     <div className="flex items-center gap-2">
                       {filteredGames.length > EXPORT_ROW_LIMIT && (
                         <span className="text-xs text-amber-600 dark:text-amber-400">
-                          Narrow your filters to {EXPORT_ROW_LIMIT} or fewer bets to save an image
+                          <span className="sm:hidden">{EXPORT_ROW_LIMIT} max to save an image</span>
+                      <span className="hidden sm:inline">Narrow your filters to {EXPORT_ROW_LIMIT} or fewer bets to save an image</span>
                         </span>
                       )}
                       <button
                         onClick={handleExportImage}
                         disabled={exporting || filteredGames.length === 0 || filteredGames.length > EXPORT_ROW_LIMIT}
-                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        className="press rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:py-1.5"
                       >
                         {exporting ? "Saving…" : "Save image"}
                       </button>

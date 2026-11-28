@@ -1,5 +1,6 @@
 import type { GameMeta } from "../lib/types";
 import { formatBook, pillClass } from "../lib/format";
+import FilterPanel from "./FilterPanel";
 
 const MARKET_OPTIONS: Array<{ key: "spread" | "total"; label: string }> = [
   { key: "spread", label: "Spread" },
@@ -56,15 +57,29 @@ export default function GameFilters({
     set("books", next);
   }
 
+  const d = DEFAULT_GAME_FILTERS;
+  const activeCount = [
+    filters.segment !== d.segment,
+    filters.matchup !== d.matchup,
+    filters.minEdge !== d.minEdge,
+    filters.minConfidence !== d.minConfidence,
+    filters.markets.size > 0,
+    filters.books.size > 0,
+  ].filter(Boolean).length;
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <FilterPanel
+      activeCount={activeCount}
+      summary={`Min. edge ${(filters.minEdge * 100).toFixed(1)}%`}
+      onReset={() => onChange(DEFAULT_GAME_FILTERS)}
+    >
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-slate-500 dark:text-slate-400">Segment</span>
           <select
             value={filters.segment}
             onChange={(e) => set("segment", e.target.value as GameFilterState["segment"])}
-            className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+            className="h-10 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
           >
             <option value="All">All</option>
             {Object.entries(meta.segments).map(([key, label]) => (
@@ -80,7 +95,7 @@ export default function GameFilters({
           <select
             value={filters.matchup}
             onChange={(e) => set("matchup", e.target.value)}
-            className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+            className="h-10 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
           >
             <option value="All">All games</option>
             {matchups.map((m) => (
@@ -111,7 +126,7 @@ export default function GameFilters({
           <select
             value={filters.minConfidence}
             onChange={(e) => set("minConfidence", e.target.value as GameFilterState["minConfidence"])}
-            className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+            className="h-10 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
           >
             <option value="Any">Any</option>
             <option value="Medium">Medium+</option>
@@ -166,6 +181,6 @@ export default function GameFilters({
           </div>
         </div>
       )}
-    </div>
+    </FilterPanel>
   );
 }
