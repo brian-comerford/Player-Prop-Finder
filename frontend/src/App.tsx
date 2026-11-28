@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { toBlob } from "html-to-image";
 import Banner from "./components/Banner";
 import Filters, { DEFAULT_FILTERS, DEFAULT_TD_FILTERS, type FilterState } from "./components/Filters";
@@ -29,6 +30,7 @@ import { formatBook } from "./lib/format";
 import { sideBook, sideEdge } from "./lib/odds";
 import { sideBook as sideBookGame, sideEdge as sideEdgeGame } from "./lib/gameOdds";
 import { useTheme } from "./lib/useTheme";
+import { LoadError, LoadingSkeleton } from "./components/LoadStates";
 
 const CONFIDENCE_RANK: Record<string, number> = { Low: 0, Medium: 1, High: 2 };
 // A saved-image table is meant to be a curated, shareable shortlist, not a
@@ -203,8 +205,7 @@ export default function App() {
   // with its own title/filters/timestamp baked in, since it'll often be
   // viewed later with no other context (a saved file, a text to a friend).
   async function handleExportImage() {
-    const tableEl = tableWrapperRef.current?.querySelector("table");
-    if (!tableEl || (tab === "props" && !meta) || (tab === "td" && !tdMeta) || (tab === "games" && !gameMeta)) return;
+    if ((tab === "props" && !meta) || (tab === "td" && !tdMeta) || (tab === "games" && !gameMeta)) return;
     if (activeRows.length > EXPORT_ROW_LIMIT) {
       alert(
         `That's ${activeRows.length} rows -- too many for one image (and painfully slow to render). ` +
@@ -213,7 +214,14 @@ export default function App() {
       return;
     }
 
-    setExporting(true);
+    // Phones show cards, so the table only renders once an export asks for
+    // it -- flushSync makes it exist before we look for it.
+    flushSync(() => setExporting(true));
+    const tableEl = tableWrapperRef.current?.querySelector("table");
+    if (!tableEl) {
+      setExporting(false);
+      return;
+    }
     const wrapper = document.createElement("div");
     const captureHost = document.createElement("div");
     try {
@@ -324,15 +332,17 @@ export default function App() {
   return (
     <div className="mx-auto max-w-6xl px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-6">
       {error && (
-        <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
-          Couldn't load prop data ({error}). If you're running this locally, make sure you've
-          run <code>npm run sync-data</code> after generating <code>data/*.json</code>.
-        </div>
+        <LoadError what="this week's props" detail={error}>
+          {import.meta.env.DEV && (
+            <>
+              {" "}Running locally? Run <code>npm run sync-data</code> after generating{" "}
+              <code>data/*.json</code>.
+            </>
+          )}
+        </LoadError>
       )}
 
-      {!error && (!props || !meta) && (
-        <div className="py-20 text-center text-slate-500 dark:text-slate-400">Loading props…</div>
-      )}
+      {!error && (!props || !meta) && <LoadingSkeleton />}
 
       {props && meta && (
         <div className="space-y-5">
@@ -370,7 +380,7 @@ export default function App() {
                 </span>
                 <div className="flex items-center gap-2">
                   {filtered.length > EXPORT_ROW_LIMIT && (
-                    <span className="text-xs text-amber-600 dark:text-amber-400">
+                    <span className="text-xs text-amber-700 dark:text-amber-400">
                       <span className="sm:hidden">{EXPORT_ROW_LIMIT} max to save an image</span>
                       <span className="hidden sm:inline">Narrow your filters to {EXPORT_ROW_LIMIT} or fewer props to save an image</span>
                     </span>
@@ -378,14 +388,19 @@ export default function App() {
                   <button
                     onClick={handleExportImage}
                     disabled={exporting || filtered.length === 0 || filtered.length > EXPORT_ROW_LIMIT}
-                    className="press rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:py-1.5"
+                    className="press h-11 rounded-md border border-slate-300 bg-white px-3.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:h-auto sm:py-1.5 sm:text-xs"
                   >
                     {exporting ? "Saving…" : "Save image"}
                   </button>
                 </div>
               </div>
               <div ref={tableWrapperRef}>
-                <PropsTable props={filtered} onSelect={setSelected} />
+                <PropsTable
+                  props={filtered}
+                  onSelect={setSelected}
+                  forceTable={exporting}
+                  onResetFilters={() => setFilters(DEFAULT_FILTERS)}
+                />
               </div>
               <TrackRecordSection trackRecord={trackRecord} fetchDetail={fetchTrackRecordDetail} label="Track record" />
             </>
@@ -393,15 +408,9 @@ export default function App() {
 
           {tab === "td" && (
             <>
-              {tdError && (
-                <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
-                  Couldn't load Anytime TD data ({tdError}).
-                </div>
-              )}
+              {tdError && <LoadError what="Anytime TD props" detail={tdError} />}
               {!tdError && (!tdProps || !tdMeta) && (
-                <div className="py-16 text-center text-slate-500 dark:text-slate-400">
-                  Loading Anytime TD props…
-                </div>
+                <LoadingSkeleton listOnly />
               )}
               {tdProps && tdMeta && (
                 <>
@@ -424,7 +433,7 @@ export default function App() {
                     </span>
                     <div className="flex items-center gap-2">
                       {filteredTd.length > EXPORT_ROW_LIMIT && (
-                        <span className="text-xs text-amber-600 dark:text-amber-400">
+                        <span className="text-xs text-amber-700 dark:text-amber-400">
                           <span className="sm:hidden">{EXPORT_ROW_LIMIT} max to save an image</span>
                       <span className="hidden sm:inline">Narrow your filters to {EXPORT_ROW_LIMIT} or fewer props to save an image</span>
                         </span>
@@ -432,14 +441,20 @@ export default function App() {
                       <button
                         onClick={handleExportImage}
                         disabled={exporting || filteredTd.length === 0 || filteredTd.length > EXPORT_ROW_LIMIT}
-                        className="press rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:py-1.5"
+                        className="press h-11 rounded-md border border-slate-300 bg-white px-3.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:h-auto sm:py-1.5 sm:text-xs"
                       >
                         {exporting ? "Saving…" : "Save image"}
                       </button>
                     </div>
                   </div>
                   <div ref={tableWrapperRef}>
-                    <PropsTable props={filteredTd} onSelect={setSelected} showConfidence={false} />
+                    <PropsTable
+                      props={filteredTd}
+                      onSelect={setSelected}
+                      showConfidence={false}
+                      forceTable={exporting}
+                      onResetFilters={() => setTdFilters(DEFAULT_TD_FILTERS)}
+                    />
                   </div>
                   <TrackRecordSection
                     trackRecord={tdTrackRecord}
@@ -461,15 +476,9 @@ export default function App() {
 
           {tab === "games" && (
             <>
-              {gameError && (
-                <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
-                  Couldn't load game bets ({gameError}).
-                </div>
-              )}
+              {gameError && <LoadError what="game bets" detail={gameError} />}
               {!gameError && (!gameProps || !gameMeta) && (
-                <div className="py-16 text-center text-slate-500 dark:text-slate-400">
-                  Loading game bets…
-                </div>
+                <LoadingSkeleton listOnly />
               )}
               {gameProps && gameMeta && (
                 <>
@@ -487,7 +496,7 @@ export default function App() {
                     </span>
                     <div className="flex items-center gap-2">
                       {filteredGames.length > EXPORT_ROW_LIMIT && (
-                        <span className="text-xs text-amber-600 dark:text-amber-400">
+                        <span className="text-xs text-amber-700 dark:text-amber-400">
                           <span className="sm:hidden">{EXPORT_ROW_LIMIT} max to save an image</span>
                       <span className="hidden sm:inline">Narrow your filters to {EXPORT_ROW_LIMIT} or fewer bets to save an image</span>
                         </span>
@@ -495,14 +504,19 @@ export default function App() {
                       <button
                         onClick={handleExportImage}
                         disabled={exporting || filteredGames.length === 0 || filteredGames.length > EXPORT_ROW_LIMIT}
-                        className="press rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:py-1.5"
+                        className="press h-11 rounded-md border border-slate-300 bg-white px-3.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:h-auto sm:py-1.5 sm:text-xs"
                       >
                         {exporting ? "Saving…" : "Save image"}
                       </button>
                     </div>
                   </div>
                   <div ref={tableWrapperRef}>
-                    <GamesTable props={filteredGames} onSelect={setSelectedGame} />
+                    <GamesTable
+                      props={filteredGames}
+                      onSelect={setSelectedGame}
+                      forceTable={exporting}
+                      onResetFilters={() => setGameFilters(DEFAULT_GAME_FILTERS)}
+                    />
                   </div>
                   <GameTrackRecordSection trackRecord={gameTrackRecord} fetchDetail={fetchGameTrackRecordDetail} />
                 </>

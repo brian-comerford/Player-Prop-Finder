@@ -84,7 +84,7 @@ export default function PickFilters({
             step={0.005}
             value={minEdge}
             onChange={(e) => onChange({ ...filters, minEdge: Number(e.target.value) })}
-            className="mt-2"
+            className="h-11 sm:mt-2 sm:h-auto"
           />
         </label>
         {!hideConfidence && (
@@ -93,7 +93,7 @@ export default function PickFilters({
           <select
             value={confidence}
             onChange={(e) => onChange({ ...filters, confidence: e.target.value as Confidence | "All" })}
-            className="h-10 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
+            className="h-11 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
           >
             {CONFIDENCE_OPTIONS.map((c) => (
               <option key={c} value={c}>
@@ -109,7 +109,7 @@ export default function PickFilters({
             <select
               value={side}
               onChange={(e) => onChange({ ...filters, side: e.target.value as Side | "All" })}
-              className="h-10 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
+              className="h-11 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
             >
               <option value="All">All</option>
               <option value="over">{sideLabels.over}</option>
@@ -123,7 +123,7 @@ export default function PickFilters({
         <span className="text-slate-500 dark:text-slate-400">
           Bet type{markets.size > 0 && ` (${markets.size} selected)`}
         </span>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2 sm:gap-1.5">
           <button
             type="button"
             onClick={() => onChange({ ...filters, markets: new Set() })}

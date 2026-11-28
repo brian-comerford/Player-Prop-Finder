@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { Prop } from "../lib/types";
 import {
   confidenceColorClass,
@@ -9,6 +9,8 @@ import {
   formatPct,
   formatPctWithOdds,
 } from "../lib/format";
+import { useMediaQuery } from "../lib/useMediaQuery";
+import { ChevronIcon } from "./Icons";
 import { isBinaryMarket, sideBook, sideEdge, sideImpliedProb, sideModelProb, sidePrice } from "../lib/odds";
 
 function propKey(p: Prop): string {
@@ -18,24 +20,34 @@ function propKey(p: Prop): string {
   return `${p.player_name}-${p.market}-${p.book_over}`;
 }
 
+// Phones get the list in batches: a full slate is ~1,000 props, far more
+// than anyone scrolls through, and rendering every card up front makes the
+// page slow to open on a phone.
+const CARD_BATCH = 40;
+
 export default function PropsTable({
   props,
   onSelect,
   showConfidence = true,
+  onResetFilters,
+  forceTable = false,
 }: {
   props: Prop[];
   onSelect: (prop: Prop) => void;
   // Off for Anytime TD, which carries no confidence rating.
   showConfidence?: boolean;
+  // Offered from the empty state.
+  onResetFilters?: () => void;
+  // Render the (hidden) table on phones too -- Save image exports it.
+  forceTable?: boolean;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const wide = useMediaQuery("(min-width: 640px)");
+  const [visible, setVisible] = useState(CARD_BATCH);
+  useEffect(() => setVisible(CARD_BATCH), [props]);
 
   if (props.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400">
-        No props match the current filters. Try lowering the minimum edge.
-      </div>
-    );
+    return <EmptyState noun="props" onReset={onResetFilters} />;
   }
 
   const toggleExpanded = (key: string) => {
@@ -52,8 +64,10 @@ export default function PropsTable({
 
   return (
     <>
-      <ul className="space-y-2 sm:hidden">
-        {props.map((p) => {
+      {!wide && (
+      <>
+      <ul className="space-y-2">
+        {props.slice(0, visible).map((p) => {
           const key = propKey(p);
           return (
             <PropCard
@@ -67,9 +81,17 @@ export default function PropsTable({
           );
         })}
       </ul>
-    {/* The table stays in the DOM on phones too (just hidden): the Save image
-        export clones it from here. */}
-    <div className="hidden overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 sm:block">
+      {visible < props.length && (
+        <ShowMore
+          remaining={props.length - visible}
+          batch={CARD_BATCH}
+          onClick={() => setVisible((v) => v + CARD_BATCH)}
+        />
+      )}
+      </>
+      )}
+    {(wide || forceTable) && (
+    <div className={`overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 ${wide ? "" : "hidden"}`}>
       <table className="w-full min-w-[840px] border-collapse text-sm tabular-nums">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-100 text-left text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
@@ -110,11 +132,9 @@ export default function PropsTable({
                           aria-expanded={isExpanded}
                           className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
                         >
-                          <span
-                            className={`inline-block text-xs transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                          >
-                            &#9656;
-                          </span>
+                          <ChevronIcon
+                            className={`transition-transform duration-200 ease-[var(--ease-out)] ${isExpanded ? "rotate-90" : ""}`}
+                          />
                         </button>
                       ) : (
                         <span className="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -125,6 +145,7 @@ export default function PropsTable({
                           {p.injury_status && (
                             <span
                               title={p.injury_status}
+                              aria-label={p.injury_status}
                               className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
                             >
                               Q
@@ -181,7 +202,40 @@ export default function PropsTable({
         </tbody>
       </table>
     </div>
+    )}
     </>
+  );
+}
+
+export function EmptyState({ noun, onReset }: { noun: string; onReset?: () => void }) {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-300 px-6 py-10 text-center dark:border-slate-700">
+      <p className="font-medium text-slate-700 dark:text-slate-200">No {noun} match these filters</p>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        Lowering the minimum edge or clearing a market or book usually brings some back.
+      </p>
+      {onReset && (
+        <button
+          type="button"
+          onClick={onReset}
+          className="press mt-4 h-11 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white sm:h-9"
+        >
+          Reset filters
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function ShowMore({ remaining, batch, onClick }: { remaining: number; batch: number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="press mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white text-sm font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+    >
+      Show {Math.min(batch, remaining)} more <span className="tabular-nums text-slate-500 dark:text-slate-400">({remaining} left)</span>
+    </button>
   );
 }
 
@@ -222,11 +276,9 @@ function PropCard({
             <div className="flex items-center gap-1.5 font-semibold tracking-tight">
               <span className="truncate">{p.player_name}</span>
               {p.injury_status && (
-                <span
-                  title={p.injury_status}
-                  className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
-                >
-                  Q
+                // Spelled out: a title tooltip never shows on a touch screen.
+                <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                  {p.injury_status}
                 </span>
               )}
             </div>
@@ -278,14 +330,11 @@ function PropCard({
             type="button"
             onClick={onToggle}
             aria-expanded={expanded}
-            className="flex min-h-[40px] w-full items-center gap-1.5 px-3.5 text-xs font-medium text-emerald-700 active:bg-slate-50 dark:text-emerald-400 dark:active:bg-slate-800/60"
+            className="flex min-h-[44px] w-full items-center gap-1.5 px-3.5 text-xs font-medium text-emerald-700 active:bg-slate-50 dark:text-emerald-400 dark:active:bg-slate-800/60"
           >
-            <span
-              className={`inline-block transition-transform duration-200 ease-[var(--ease-out)] ${expanded ? "rotate-90" : ""}`}
-              aria-hidden="true"
-            >
-              &#9656;
-            </span>
+            <ChevronIcon
+              className={`transition-transform duration-200 ease-[var(--ease-out)] ${expanded ? "rotate-90" : ""}`}
+            />
             {p.trends.length} notable {p.trends.length === 1 ? "trend" : "trends"}
           </button>
           {expanded && (

@@ -79,7 +79,7 @@ export default function GameFilters({
           <select
             value={filters.segment}
             onChange={(e) => set("segment", e.target.value as GameFilterState["segment"])}
-            className="h-10 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
+            className="h-11 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
           >
             <option value="All">All</option>
             {Object.entries(meta.segments).map(([key, label]) => (
@@ -95,7 +95,7 @@ export default function GameFilters({
           <select
             value={filters.matchup}
             onChange={(e) => set("matchup", e.target.value)}
-            className="h-10 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
+            className="h-11 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
           >
             <option value="All">All games</option>
             {matchups.map((m) => (
@@ -117,7 +117,7 @@ export default function GameFilters({
             step={0.005}
             value={filters.minEdge}
             onChange={(e) => set("minEdge", Number(e.target.value))}
-            className="mt-2"
+            className="h-11 sm:mt-2 sm:h-auto"
           />
         </label>
 
@@ -126,7 +126,7 @@ export default function GameFilters({
           <select
             value={filters.minConfidence}
             onChange={(e) => set("minConfidence", e.target.value as GameFilterState["minConfidence"])}
-            className="h-10 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
+            className="h-11 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 sm:h-auto"
           >
             <option value="Any">Any</option>
             <option value="Medium">Medium+</option>
@@ -139,7 +139,7 @@ export default function GameFilters({
         <span className="text-slate-500 dark:text-slate-400">
           Market{filters.markets.size > 0 && ` (${filters.markets.size} selected)`}
         </span>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2 sm:gap-1.5">
           <button
             type="button"
             onClick={() => set("markets", new Set())}
@@ -165,7 +165,7 @@ export default function GameFilters({
           <span className="text-slate-500 dark:text-slate-400">
             Book{filters.books.size > 0 && ` (${filters.books.size} selected)`}
           </span>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2 sm:gap-1.5">
             <button
               type="button"
               onClick={() => set("books", new Set())}

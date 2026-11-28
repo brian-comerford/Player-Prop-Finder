@@ -33,8 +33,8 @@ export default function FilterPanel({
               ? // The panel's own border already frames it -- no box-in-a-box.
                 "-my-1 h-9 w-full justify-between px-1 text-slate-700 dark:text-slate-200"
               : open
-                ? "h-10 border border-slate-900 bg-slate-900 px-3 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
-                : "h-10 border border-slate-300 px-3 text-slate-700 dark:border-slate-700 dark:text-slate-200"
+                ? "h-11 border border-slate-900 bg-slate-900 px-3 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
+                : "h-11 border border-slate-300 px-3 text-slate-700 dark:border-slate-700 dark:text-slate-200"
           }`}
         >
           <span className="flex items-center gap-1.5">

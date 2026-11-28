@@ -26,6 +26,36 @@ body {
   padding-right: env(safe-area-inset-right);
 }
 
+/* The browser-drawn bits, themed to the palette instead of left at
+   defaults: selection, caret, field placeholders, the edge slider, and a
+   keyboard focus ring (keyboard only -- taps and clicks don't show it). */
+::selection {
+  background-color: rgb(16 185 129 / 0.25);
+}
+input,
+textarea {
+  caret-color: #059669;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+input[type="range"] {
+  accent-color: #0f172a;
+  cursor: pointer;
+}
+.dark input[type="range"] {
+  accent-color: #e2e8f0;
+}
+:focus-visible {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
+}
+[role="dialog"]:focus-visible {
+  outline: none;
+}
+
 /* Controls act on the first tap (no double-tap-zoom wait) and a long
    press doesn't select their label text. */
 button,

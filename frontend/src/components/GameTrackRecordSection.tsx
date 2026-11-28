@@ -3,6 +3,7 @@ import type { Confidence, GameTrackRecordDetail, GradedGamePick, TrackRecord } f
 import { formatUnits, pillClass } from "../lib/format";
 import { sumUnits } from "../lib/odds";
 import Sheet from "./Sheet";
+import { ChevronIcon } from "./Icons";
 
 const CONFIDENCE_TIERS: Confidence[] = ["High", "Medium", "Low"];
 const CONFIDENCE_OPTIONS: Array<Confidence | "All"> = ["All", "High", "Medium", "Low"];
@@ -74,7 +75,7 @@ export default function GameTrackRecordSection({
     <div className="flex justify-center pb-4 pt-2">
       <button
         onClick={handleOpen}
-        className="press rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 sm:py-2 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        className="press rounded-md border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 sm:py-2 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
       >
         Track record: {pct(overall.hit_rate)} ({overall.hits}/{overall.picks})
         {overall.priced_picks > 0 && <> &middot; {formatUnits(overall.units)}</>}
@@ -298,7 +299,7 @@ function GameTrackRecordPanel({
                           {g.pricedPicks < g.picks.length && ` (${g.pricedPicks}/${g.picks.length} priced)`}
                         </>
                       )}
-                      <span className="text-xs">{expanded ? "▾" : "▸"}</span>
+                      <ChevronIcon className={`transition-transform duration-200 ease-[var(--ease-out)] ${expanded ? "rotate-90" : ""}`} />
                     </span>
                   </button>
 
@@ -326,7 +327,7 @@ function GameTrackRecordPanel({
                               <td
                                 className={`py-1.5 pr-2 font-medium ${
                                   p.hit
-                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    ? "text-emerald-700 dark:text-emerald-400"
                                     : "text-red-500 dark:text-red-400"
                                 }`}
                               >

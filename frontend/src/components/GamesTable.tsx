@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
 import type { GameProp } from "../lib/types";
+import { useMediaQuery } from "../lib/useMediaQuery";
+import { EmptyState, ShowMore } from "./PropsTable";
 import { confidenceColorClass, edgeColorClass, formatBook, formatOdds, formatPct, formatPctWithOdds } from "../lib/format";
 import { sideBook, sideEdge, sideImpliedProb, sideLabel, sideModelProb, sidePrice } from "../lib/gameOdds";
 
@@ -6,30 +9,44 @@ function gamePropKey(p: GameProp): string {
   return `${p.matchup}-${p.segment}-${p.market}-${p.book_a}`;
 }
 
+const CARD_BATCH = 40;
+
 export default function GamesTable({
   props,
   onSelect,
+  onResetFilters,
+  forceTable = false,
 }: {
   props: GameProp[];
   onSelect: (prop: GameProp) => void;
+  onResetFilters?: () => void;
+  // Render the (hidden) table on phones too -- Save image exports it.
+  forceTable?: boolean;
 }) {
+  const wide = useMediaQuery("(min-width: 640px)");
+  const [visible, setVisible] = useState(CARD_BATCH);
+  useEffect(() => setVisible(CARD_BATCH), [props]);
+
   if (props.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400">
-        No game bets match the current filters. Try lowering the minimum edge.
-      </div>
-    );
+    return <EmptyState noun="game bets" onReset={onResetFilters} />;
   }
 
   return (
     <>
-      <ul className="space-y-2 sm:hidden">
-        {props.map((p) => (
-          <GameCard key={gamePropKey(p)} prop={p} onSelect={() => onSelect(p)} />
-        ))}
-      </ul>
-    {/* Kept in the DOM on phones (hidden) for the Save image export. */}
-    <div className="hidden overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 sm:block">
+      {!wide && (
+        <>
+          <ul className="space-y-2">
+            {props.slice(0, visible).map((p) => (
+              <GameCard key={gamePropKey(p)} prop={p} onSelect={() => onSelect(p)} />
+            ))}
+          </ul>
+          {visible < props.length && (
+            <ShowMore remaining={props.length - visible} batch={CARD_BATCH} onClick={() => setVisible((v) => v + CARD_BATCH)} />
+          )}
+        </>
+      )}
+    {(wide || forceTable) && (
+    <div className={`overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 ${wide ? "" : "hidden"}`}>
       <table className="w-full min-w-[780px] border-collapse text-sm tabular-nums">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-100 text-left text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
@@ -85,6 +102,7 @@ export default function GamesTable({
         </tbody>
       </table>
     </div>
+    )}
     </>
   );
 }

@@ -38,7 +38,7 @@ function Cell({ summary }: { summary: Summary | undefined }) {
     <td className="whitespace-nowrap px-2 py-1.5 align-top">
       <div
         className={`font-semibold ${
-          summary.hitRate > summary.expectedHitRate ? "text-emerald-600 dark:text-emerald-400" : ""
+          summary.hitRate > summary.expectedHitRate ? "text-emerald-700 dark:text-emerald-400" : ""
         }`}
       >
         {formatPct(summary.hitRate)}
@@ -49,7 +49,7 @@ function Cell({ summary }: { summary: Summary | undefined }) {
           units === null
             ? "text-slate-500"
             : units > 0
-              ? "text-emerald-600 dark:text-emerald-400"
+              ? "text-emerald-700 dark:text-emerald-400"
               : units < 0
                 ? "text-rose-600 dark:text-rose-400"
                 : ""

@@ -64,7 +64,7 @@ function Stat({ label, value, highlight }: { label: string; value: string; highl
   return (
     <div className="rounded-lg bg-slate-100 p-2.5 dark:bg-slate-800">
       <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
-      <div className={`text-sm font-semibold tabular-nums ${highlight ? "text-emerald-600 dark:text-emerald-400" : ""}`}>
+      <div className={`text-sm font-semibold tabular-nums ${highlight ? "text-emerald-700 dark:text-emerald-400" : ""}`}>
         {value}
       </div>
     </div>
