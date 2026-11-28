@@ -18,6 +18,7 @@ export interface GameFilterState {
   // Which book(s) the recommended side's price has to come from. Empty
   // means "all books", same convention as Filters.tsx.
   books: Set<string>;
+  pickedOnly: boolean;
 }
 
 export const DEFAULT_GAME_FILTERS: GameFilterState = {
@@ -27,6 +28,7 @@ export const DEFAULT_GAME_FILTERS: GameFilterState = {
   minEdge: 0.03,
   minConfidence: "Any",
   books: new Set(),
+  pickedOnly: false,
 };
 
 export default function GameFilters({

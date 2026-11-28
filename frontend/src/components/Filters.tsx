@@ -15,6 +15,8 @@ export interface FilterState {
   // Which book(s) the recommended side's price has to come from. Empty
   // means "all books".
   books: Set<string>;
+  // Only the props marked as picked (see lib/usePicks.ts).
+  pickedOnly: boolean;
 }
 
 export const DEFAULT_FILTERS: FilterState = {
@@ -28,6 +30,7 @@ export const DEFAULT_FILTERS: FilterState = {
   minEdge: 0.04,
   minConfidence: "Any",
   books: new Set(),
+  pickedOnly: false,
 };
 
 // Anytime TD uses half the model weight, so its blended edges run smaller

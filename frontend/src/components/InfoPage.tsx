@@ -60,6 +60,19 @@ export default function InfoPage({
         </div>
       </Section>
 
+      <Section title="Marking your picks">
+        <p>
+          Tap <strong>Mark as picked</strong> on any bet you&apos;ve placed. It stays marked when you
+          come back, and <strong>My picks</strong> above the list shows just those. If the line or
+          price moves after you mark it, the bet shows what you took next to where it is now.
+        </p>
+        <p>
+          Picks are saved in this browser on this device only &mdash; they don&apos;t sync to your
+          other devices, and clearing your browser data removes them. Marks older than three weeks
+          are cleared automatically.
+        </p>
+      </Section>
+
       <Section title="What this page is doing">
         <p>
           For each player and stat (a "market"), the app builds its own projection from that

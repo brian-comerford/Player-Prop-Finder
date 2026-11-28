@@ -2,9 +2,13 @@ import type { GameProp } from "../lib/types";
 import { formatBook, formatOdds, formatPct, formatPctWithOdds } from "../lib/format";
 import { sideBook, sideEdge, sideImpliedProb, sideLabel, sideModelProb, sidePrice } from "../lib/gameOdds";
 import Sheet from "./Sheet";
+import PickButton, { PickedNote } from "./PickButton";
+import { gamePickKey, gameSnapshot, usePicks } from "../lib/usePicks";
 
 export default function GameDetail({ prop, onClose }: { prop: GameProp; onClose: () => void }) {
   const side = prop.recommended_side;
+  const { picks, toggle } = usePicks();
+  const snapshot = picks[gamePickKey(prop)];
 
   return (
     <Sheet
@@ -17,6 +21,16 @@ export default function GameDetail({ prop, onClose }: { prop: GameProp; onClose:
         </>
       }
     >
+      <div className="mb-5 space-y-2">
+        <PickButton variant="block" picked={!!snapshot} onToggle={() => toggle(gamePickKey(prop), () => gameSnapshot(prop))} />
+        {snapshot && (
+          <PickedNote
+            snapshot={snapshot}
+            current={gameSnapshot(prop)}
+          />
+        )}
+      </div>
+
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Pick" value={sideLabel(prop, side)} />
         <Stat label="Odds" value={formatOdds(sidePrice(prop, side))} />

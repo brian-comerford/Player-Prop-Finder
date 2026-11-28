@@ -13,6 +13,8 @@ import type { Prop } from "../lib/types";
 import { formatBook, formatLine, formatOdds, formatPct, formatPctWithOdds } from "../lib/format";
 import { isBinaryMarket, sideBook, sideEdge, sideImpliedProb, sideModelProb, sidePrice } from "../lib/odds";
 import Sheet from "./Sheet";
+import PickButton, { PickedNote } from "./PickButton";
+import { propPickKey, propSnapshot, usePicks } from "../lib/usePicks";
 
 const BAR_UP = "#22c55e";
 const BAR_DOWN = "#94a3b8";
@@ -25,6 +27,8 @@ const AGREEMENT_LABEL: Record<"strong" | "moderate" | "split", string> = {
 
 export default function PropDetail({ prop, onClose }: { prop: Prop; onClose: () => void }) {
   const side = prop.recommended_side;
+  const { picks, toggle } = usePicks();
+  const snapshot = picks[propPickKey(prop)];
   const binary = isBinaryMarket(prop);
   const chartData = [...prop.recent_games]
     .reverse()
@@ -48,6 +52,16 @@ export default function PropDetail({ prop, onClose }: { prop: Prop; onClose: () 
           recommendation with extra caution until game status is confirmed.
         </div>
       )}
+
+      <div className="mb-5 space-y-2">
+        <PickButton variant="block" picked={!!snapshot} onToggle={() => toggle(propPickKey(prop), () => propSnapshot(prop))} />
+        {snapshot && (
+          <PickedNote
+            snapshot={snapshot}
+            current={propSnapshot(prop)}
+          />
+        )}
+      </div>
 
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Line" value={formatLine(prop.line)} />
