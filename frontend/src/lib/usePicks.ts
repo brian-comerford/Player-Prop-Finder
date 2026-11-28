@@ -110,3 +110,30 @@ export function usePicks() {
   }, []);
   return { picks, toggle };
 }
+
+export type PickView = "all" | "hide" | "only";
+
+// "Hide picked" is remembered per tab, so bets you've already placed stay
+// out of the way on the next visit. "My picks" is a quick look and isn't
+// remembered -- opening the site to just two props would be confusing.
+const VIEW_KEY = "pick-view-v1";
+
+export function readPickView(tab: string): PickView {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VIEW_KEY) ?? "{}")[tab];
+    return saved === "hide" ? "hide" : "all";
+  } catch {
+    return "all";
+  }
+}
+
+export function savePickView(tab: string, view: PickView) {
+  if (view === "only") return;
+  try {
+    const all = JSON.parse(localStorage.getItem(VIEW_KEY) ?? "{}");
+    all[tab] = view;
+    localStorage.setItem(VIEW_KEY, JSON.stringify(all));
+  } catch {
+    // not remembered; fine
+  }
+}

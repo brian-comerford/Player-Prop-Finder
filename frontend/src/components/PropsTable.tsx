@@ -309,8 +309,10 @@ function PropCard({
               <span className="truncate">{p.player_name}</span>
               {p.injury_status && (
                 // Spelled out: a title tooltip never shows on a touch screen.
+                // Just the status word ("Questionable"); the body part is in the
+                // detail panel, and on a narrow card it would crowd out the name.
                 <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                  {p.injury_status}
+                  {p.injury_status.split(" (")[0]}
                 </span>
               )}
             </div>

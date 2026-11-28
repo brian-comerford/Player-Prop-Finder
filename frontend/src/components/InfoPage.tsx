@@ -63,7 +63,8 @@ export default function InfoPage({
       <Section title="Marking your picks">
         <p>
           Tap <strong>Mark as picked</strong> on any bet you&apos;ve placed. It stays marked when you
-          come back, and <strong>My picks</strong> above the list shows just those. If the line or
+          come back. Above the list, <strong>Hide picked</strong> takes them out of the way (and stays
+          on next time), and <strong>My picks</strong> shows just those. If the line or
           price moves after you mark it, the bet shows what you took next to where it is now.
         </p>
         <p>
