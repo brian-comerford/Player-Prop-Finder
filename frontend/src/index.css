@@ -2,10 +2,195 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Strong ease-outs: fast start, gentle settle. Nothing here eases in --
+     a slow start reads as lag on a tap. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  /* The iOS sheet curve. */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 html {
   color-scheme: light dark;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+  @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  /* viewport-fit=cover lets the page run under the notch in landscape;
+     keep the content itself clear of it. */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* The browser-drawn bits, themed to the palette instead of left at
+   defaults: selection, caret, field placeholders, the edge slider, and a
+   keyboard focus ring (keyboard only -- taps and clicks don't show it). */
+::selection {
+  background-color: rgb(16 185 129 / 0.25);
+}
+input,
+textarea {
+  caret-color: #059669;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+input[type="range"] {
+  accent-color: #0f172a;
+  cursor: pointer;
+}
+.dark input[type="range"] {
+  accent-color: #e2e8f0;
+}
+:focus-visible {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
+}
+[role="dialog"]:focus-visible {
+  outline: none;
+}
+
+/* Controls act on the first tap (no double-tap-zoom wait) and a long
+   press doesn't select their label text. */
+button,
+select,
+summary,
+label,
+[role="button"] {
+  touch-action: manipulation;
+}
+button,
+summary,
+[role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* iOS zooms the page into any focused field under 16px -- size them up on
+   touch screens only, so desktop keeps the compact look. */
+@media (pointer: coarse) {
+  input[type="text"],
+  input[type="search"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+@layer utilities {
+  /* Press feedback: a quick, slight shrink so a tap visibly lands. */
+  .press {
+    transition-property: color, background-color, border-color, opacity, box-shadow, transform;
+    transition-duration: 160ms;
+    transition-timing-function: var(--ease-out);
+  }
+  .press:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  .press-subtle {
+    transition-property: background-color, transform;
+    transition-duration: 160ms;
+    transition-timing-function: var(--ease-out);
+  }
+  .press-subtle:active {
+    transform: scale(0.985);
+  }
+}
+
+/* Sheet (see components/Sheet.tsx): slides up from the bottom on phones,
+   scales in as a dialog from sm: up. Transitions rather than keyframes so
+   a close or a drag mid-open picks up from wherever it is. */
+.sheet-overlay {
+  opacity: 0;
+  transition: opacity 400ms var(--ease-out);
+}
+.sheet-overlay[data-open="true"] {
+  opacity: 1;
+}
+.sheet-panel {
+  max-height: 92vh;
+  max-height: 92dvh;
+  transform: translateY(100%);
+  transition: transform 450ms var(--ease-drawer);
+  will-change: transform;
+}
+.sheet-panel[data-open="true"] {
+  transform: translateY(0);
+}
+.sheet-overlay[data-closing],
+.sheet-panel[data-closing] {
+  transition-duration: 260ms;
+}
+.sheet-handle {
+  touch-action: none;
+}
+.sheet-body {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+@media (min-width: 640px) {
+  .sheet-panel {
+    max-height: 88vh;
+    max-height: 88dvh;
+    opacity: 0;
+    transform: scale(0.96);
+    transition:
+      transform 220ms var(--ease-out),
+      opacity 220ms var(--ease-out);
+  }
+  .sheet-panel[data-open="true"] {
+    opacity: 1;
+    transform: none;
+  }
+  .sheet-overlay[data-closing],
+  .sheet-panel[data-closing] {
+    transition-duration: 160ms;
+  }
+  .sheet-handle {
+    touch-action: auto;
+  }
+}
+
+/* Collapsible filter panel on phones. */
+.reveal {
+  animation: reveal 220ms var(--ease-out);
+}
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Keep the fades (they help follow what changed), drop the movement. */
+  .sheet-panel,
+  .sheet-panel[data-open="true"] {
+    transform: none !important;
+  }
+  .sheet-panel {
+    opacity: 0;
+    transition: opacity 200ms ease !important;
+  }
+  .sheet-panel[data-open="true"] {
+    opacity: 1;
+  }
+  .press:active:not(:disabled),
+  .press-subtle:active {
+    transform: none;
+  }
+  .reveal {
+    animation-name: fade;
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+  }
 }

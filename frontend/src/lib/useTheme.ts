@@ -22,6 +22,8 @@ function prefersDark(): boolean {
 function applyTheme(theme: ThemeChoice) {
   const isDark = theme === "dark" || (theme === "system" && prefersDark());
   document.documentElement.classList.toggle("dark", isDark);
+  // Match the browser chrome (status bar / toolbar tint) to the page.
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isDark ? "#020617" : "#f8fafc");
 }
 
 /**

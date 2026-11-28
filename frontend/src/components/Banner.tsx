@@ -19,14 +19,19 @@ export default function Banner({ meta }: { meta: Meta }) {
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <img src="logo.png" alt="" className="h-10 w-auto sm:h-12" />
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Player Prop Finder</h1>
+          <img src="logo.png" alt="" className="h-9 w-auto sm:h-12" />
+          <h1 className="text-[22px] font-bold tracking-[-0.02em] sm:text-3xl">Player Prop Finder</h1>
         </div>
-        <span className="text-sm text-slate-500 dark:text-slate-400">
+        <span className="text-sm tabular-nums text-slate-500 dark:text-slate-400">
           {weekLabel} &middot; updated {timeAgo(meta.generated_at)}
         </span>
       </div>
-      <p className="max-w-3xl text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-sm text-slate-600 dark:text-slate-400 sm:hidden">
+        Projects each player&apos;s stat line and compares it to the sportsbook&apos;s no-vig odds
+        to surface lines that look mispriced. A statistical model, not betting advice &mdash; see
+        the Info tab.
+      </p>
+      <p className="hidden max-w-3xl text-sm text-slate-600 dark:text-slate-400 sm:block">
         Projects each player's stat line from recency-weighted recent games and an
         opponent-defense adjustment, then compares that to the sportsbook's no-vig implied
         probability to surface lines that look mispriced. This is a statistical model, not
@@ -34,7 +39,7 @@ export default function Banner({ meta }: { meta: Meta }) {
         responsibly.
       </p>
       {meta.inactive_players_excluded > 0 && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">
           {meta.inactive_players_excluded} player(s) left out of these results because we
           couldn't confirm they've played recently (injury, retirement, etc.) &mdash; see the
           Info tab.
@@ -48,7 +53,7 @@ export default function Banner({ meta }: { meta: Meta }) {
           secret to pull live odds &mdash; see the README.
         </div>
       )}
-      <p className="text-xs text-slate-400 dark:text-slate-600">
+      <p className="text-xs text-slate-500 dark:text-slate-400">
         This app costs approximately $30 per month to keep up to date. If you use it and enjoy
         it, a small donation would be appreciated &mdash; @Brian-Comerford-1 on Venmo.
       </p>

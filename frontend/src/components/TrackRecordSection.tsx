@@ -2,7 +2,8 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { Confidence, GradedPick, TrackRecord, TrackRecordDetail } from "../lib/types";
 import { formatUnits } from "../lib/format";
 import { breakevenRate, sumUnits } from "../lib/odds";
-import { useLockBodyScroll } from "../lib/useLockBodyScroll";
+import Sheet from "./Sheet";
+import { ChevronIcon } from "./Icons";
 import PickFilters, {
   DEFAULT_PICK_FILTERS,
   matchesPickFilters,
@@ -95,7 +96,7 @@ export default function TrackRecordSection({
     <div className="flex justify-center pb-4 pt-2">
       <button
         onClick={handleOpen}
-        className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        className="press rounded-md border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 sm:py-2 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
       >
         {label}: {pct(overall.hit_rate)} ({overall.hits}/{overall.picks})
         {overall.priced_picks > 0 && <> &middot; {formatUnits(overall.units)}</>}
@@ -136,7 +137,6 @@ function TrackRecordPanel({
   note?: ReactNode;
   onClose: () => void;
 }) {
-  useLockBodyScroll();
   const overall = trackRecord.overall!;
 
   const [filters, setFilters] = useState<PickFilterState>(DEFAULT_PICK_FILTERS);
@@ -183,186 +183,170 @@ function TrackRecordPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
-      <div
-        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl dark:bg-slate-900 sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-start justify-between">
-          <h2 className="text-xl font-bold">{label}</h2>
-          <button
-            onClick={onClose}
-            className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
-          <strong>{pct(overall.hit_rate)}</strong> of picks have hit ({overall.hits}/{overall.picks})
-          {trackRecord.weeks_graded > 0 && (
-            <>
-              {" "}
-              across {trackRecord.weeks_graded} graded {trackRecord.weeks_graded === 1 ? "week" : "weeks"}
-            </>
-          )}
-          {trackRecord.week_in_progress &&
-            (trackRecord.weeks_graded > 0 ? " plus this week's games as they finish" : " so far this week")}
-          {trackRecord.weeks_graded < 4 && " — still an early sample"}
-          {overall.priced_picks > 0 && (
-            <>
-              {" · "}
-              <strong>{formatUnits(overall.units)}</strong> on a flat 1-unit-per-pick basis
-              {overall.priced_picks < overall.picks && ` (${overall.priced_picks} priced picks)`}
-            </>
-          )}
-          {showConfidence && CONFIDENCE_TIERS.some((tier) => trackRecord.by_confidence[tier]) && (
-            <>
-              {" · "}
-              {CONFIDENCE_TIERS.filter((tier) => trackRecord.by_confidence[tier])
-                .map((tier) => `${tier} ${pct(trackRecord.by_confidence[tier]!.hit_rate)}`)
-                .join(" · ")}
-            </>
-          )}
-        </div>
-
-        {note && (
-          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-            {note}
-            {!showConfidence && overallBreakeven !== null && (
-              <>
-                {" "}
-                So far these picks have hit <strong>{pct(overall.hit_rate)}</strong>; at the prices offered they
-                needed <strong>{pct(overallBreakeven)}</strong> to break even.
-              </>
-            )}
-          </div>
-        )}
-
-        {loading && (
-          <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">Loading graded picks…</p>
-        )}
-        {error && (
-          <p className="py-4 text-sm text-red-600 dark:text-red-400">Couldn't load pick details ({error}).</p>
-        )}
-
-        {detail && (
+    <Sheet onClose={onClose} title={label} maxWidth="sm:max-w-3xl">
+      <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
+        <strong>{pct(overall.hit_rate)}</strong> of picks have hit ({overall.hits}/{overall.picks})
+        {trackRecord.weeks_graded > 0 && (
           <>
-            <PickFilters
-              filters={filters}
-              onChange={setFilters}
-              marketOptions={marketOptions}
-              sideLabels={isAnytimeTd ? { over: "Yes (scores)", under: "No TD" } : undefined}
-              hideSide={new Set(detail.picks.map((p) => p.side)).size < 2}
-              hideConfidence={!showConfidence}
-            />
-
-            {filtersActive && (
-              <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
-                {filteredSummary.n > 0 ? (
-                  <>
-                    <strong>{pct(filteredSummary.hitRate)}</strong> of matching picks have hit (
-                    {filteredSummary.hits}/{filteredSummary.n})
-                    {filteredSummary.pricedPicks > 0 && (
-                      <>
-                        {" · "}
-                        <strong>{formatUnits(filteredSummary.units)}</strong>
-                        {filteredSummary.pricedPicks < filteredSummary.n &&
-                          ` (${filteredSummary.pricedPicks}/${filteredSummary.n} priced)`}
-                      </>
-                    )}
-                  </>
-                ) : (
-                  "No graded picks match these filters."
-                )}
-              </div>
-            )}
-
-            <div className="space-y-2">
-              {weekGroups.map((g) => {
-                const key = `${g.season}-${g.week}`;
-                const expanded = expandedWeeks.has(key);
-                const hitRate = g.picks.length > 0 ? g.hits / g.picks.length : 0;
-                return (
-                  <div
-                    key={key}
-                    className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800"
-                  >
-                    <button
-                      onClick={() => toggleWeek(key)}
-                      className="flex w-full items-center justify-between gap-2 bg-slate-50 px-3 py-2 text-left text-sm font-medium hover:bg-slate-100 dark:bg-slate-900/60 dark:hover:bg-slate-800"
-                    >
-                      <span>
-                        Week {g.week}, {g.season}
-                      </span>
-                      <span className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                        {pct(hitRate)} ({g.hits}/{g.picks.length})
-                        {g.pricedPicks > 0 && (
-                          <>
-                            &nbsp;&middot; {formatUnits(g.units)}
-                            {g.pricedPicks < g.picks.length && ` (${g.pricedPicks}/${g.picks.length} priced)`}
-                          </>
-                        )}
-                        <span className="text-xs">{expanded ? "▾" : "▸"}</span>
-                      </span>
-                    </button>
-
-                    {expanded && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                          <thead>
-                            <tr className="border-b border-slate-200 text-xs uppercase text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                              <th className="py-1.5 pl-3 pr-2">Player</th>
-                              <th className="py-1.5 pr-2">Market</th>
-                              <th className="py-1.5 pr-2">Pick</th>
-                              <th className="py-1.5 pr-2">Edge</th>
-                              <th className="py-1.5 pr-2">Actual</th>
-                              <th className="py-1.5 pr-2">Result</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {g.picks.map((p, i) => (
-                              <tr key={i} className="border-b border-slate-100 last:border-0 dark:border-slate-800/60">
-                                <td className="py-1.5 pl-3 pr-2">
-                                  {p.player_name}
-                                  <span className="text-slate-400 dark:text-slate-500">
-                                    {" "}
-                                    · {p.team} vs {p.opponent}
-                                  </span>
-                                </td>
-                                <td className="py-1.5 pr-2">{p.market_label}</td>
-                                <td className="py-1.5 pr-2">{pickLabel(p)}</td>
-                                <td className="py-1.5 pr-2">{pct(p.edge)}</td>
-                                <td className="py-1.5 pr-2">{actualLabel(p)}</td>
-                                <td
-                                  className={`py-1.5 pr-2 font-medium ${
-                                    p.hit
-                                      ? "text-emerald-600 dark:text-emerald-400"
-                                      : "text-red-500 dark:text-red-400"
-                                  }`}
-                                >
-                                  {p.hit ? "Hit" : "Miss"}
-                                  {p.margin !== null && (
-                                    <span className="ml-1 font-normal text-slate-400 dark:text-slate-500">
-                                      ({p.hit ? "by " : "missed by "}
-                                      {Math.abs(p.margin)})
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            {" "}
+            across {trackRecord.weeks_graded} graded {trackRecord.weeks_graded === 1 ? "week" : "weeks"}
+          </>
+        )}
+        {trackRecord.week_in_progress &&
+          (trackRecord.weeks_graded > 0 ? " plus this week's games as they finish" : " so far this week")}
+        {trackRecord.weeks_graded < 4 && " — still an early sample"}
+        {overall.priced_picks > 0 && (
+          <>
+            {" · "}
+            <strong>{formatUnits(overall.units)}</strong> on a flat 1-unit-per-pick basis
+            {overall.priced_picks < overall.picks && ` (${overall.priced_picks} priced picks)`}
+          </>
+        )}
+        {showConfidence && CONFIDENCE_TIERS.some((tier) => trackRecord.by_confidence[tier]) && (
+          <>
+            {" · "}
+            {CONFIDENCE_TIERS.filter((tier) => trackRecord.by_confidence[tier])
+              .map((tier) => `${tier} ${pct(trackRecord.by_confidence[tier]!.hit_rate)}`)
+              .join(" · ")}
           </>
         )}
       </div>
-    </div>
+
+      {note && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+          {note}
+          {!showConfidence && overallBreakeven !== null && (
+            <>
+              {" "}
+              So far these picks have hit <strong>{pct(overall.hit_rate)}</strong>; at the prices offered they
+              needed <strong>{pct(overallBreakeven)}</strong> to break even.
+            </>
+          )}
+        </div>
+      )}
+
+      {loading && (
+        <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">Loading graded picks…</p>
+      )}
+      {error && (
+        <p className="py-4 text-sm text-red-600 dark:text-red-400">Couldn't load pick details ({error}).</p>
+      )}
+
+      {detail && (
+        <>
+          <PickFilters
+            filters={filters}
+            onChange={setFilters}
+            marketOptions={marketOptions}
+            sideLabels={isAnytimeTd ? { over: "Yes (scores)", under: "No TD" } : undefined}
+            hideSide={new Set(detail.picks.map((p) => p.side)).size < 2}
+            hideConfidence={!showConfidence}
+          />
+
+          {filtersActive && (
+            <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
+              {filteredSummary.n > 0 ? (
+                <>
+                  <strong>{pct(filteredSummary.hitRate)}</strong> of matching picks have hit (
+                  {filteredSummary.hits}/{filteredSummary.n})
+                  {filteredSummary.pricedPicks > 0 && (
+                    <>
+                      {" · "}
+                      <strong>{formatUnits(filteredSummary.units)}</strong>
+                      {filteredSummary.pricedPicks < filteredSummary.n &&
+                        ` (${filteredSummary.pricedPicks}/${filteredSummary.n} priced)`}
+                    </>
+                  )}
+                </>
+              ) : (
+                "No graded picks match these filters."
+              )}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {weekGroups.map((g) => {
+              const key = `${g.season}-${g.week}`;
+              const expanded = expandedWeeks.has(key);
+              const hitRate = g.picks.length > 0 ? g.hits / g.picks.length : 0;
+              return (
+                <div
+                  key={key}
+                  className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800"
+                >
+                  <button
+                    onClick={() => toggleWeek(key)}
+                    className="flex w-full items-center justify-between gap-2 bg-slate-50 px-3 py-2 text-left text-sm font-medium hover:bg-slate-100 dark:bg-slate-900/60 dark:hover:bg-slate-800"
+                  >
+                    <span>
+                      Week {g.week}, {g.season}
+                    </span>
+                    <span className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                      {pct(hitRate)} ({g.hits}/{g.picks.length})
+                      {g.pricedPicks > 0 && (
+                        <>
+                          &nbsp;&middot; {formatUnits(g.units)}
+                          {g.pricedPicks < g.picks.length && ` (${g.pricedPicks}/${g.picks.length} priced)`}
+                        </>
+                      )}
+                      <ChevronIcon className={`transition-transform duration-200 ease-[var(--ease-out)] ${expanded ? "rotate-90" : ""}`} />
+                    </span>
+                  </button>
+
+                  {expanded && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 text-xs uppercase text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                            <th className="py-1.5 pl-3 pr-2">Player</th>
+                            <th className="py-1.5 pr-2">Market</th>
+                            <th className="py-1.5 pr-2">Pick</th>
+                            <th className="py-1.5 pr-2">Edge</th>
+                            <th className="py-1.5 pr-2">Actual</th>
+                            <th className="py-1.5 pr-2">Result</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {g.picks.map((p, i) => (
+                            <tr key={i} className="border-b border-slate-100 last:border-0 dark:border-slate-800/60">
+                              <td className="py-1.5 pl-3 pr-2">
+                                {p.player_name}
+                                <span className="text-slate-400 dark:text-slate-500">
+                                  {" "}
+                                  · {p.team} vs {p.opponent}
+                                </span>
+                              </td>
+                              <td className="py-1.5 pr-2">{p.market_label}</td>
+                              <td className="py-1.5 pr-2">{pickLabel(p)}</td>
+                              <td className="py-1.5 pr-2">{pct(p.edge)}</td>
+                              <td className="py-1.5 pr-2">{actualLabel(p)}</td>
+                              <td
+                                className={`py-1.5 pr-2 font-medium ${
+                                  p.hit
+                                    ? "text-emerald-700 dark:text-emerald-400"
+                                    : "text-red-500 dark:text-red-400"
+                                }`}
+                              >
+                                {p.hit ? "Hit" : "Miss"}
+                                {p.margin !== null && (
+                                  <span className="ml-1 font-normal text-slate-400 dark:text-slate-500">
+                                    ({p.hit ? "by " : "missed by "}
+                                    {Math.abs(p.margin)})
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </Sheet>
   );
 }

@@ -48,8 +48,8 @@ export function formatUnits(units: number | null): string {
 }
 
 export function edgeColorClass(edge: number): string {
-  if (edge >= 0.06) return "text-emerald-600 dark:text-emerald-400 font-semibold";
-  if (edge > 0) return "text-emerald-700/80 dark:text-emerald-400/80";
+  if (edge >= 0.06) return "text-emerald-700 dark:text-emerald-400 font-semibold";
+  if (edge > 0) return "text-emerald-700 dark:text-emerald-400/80";
   return "text-slate-500 dark:text-slate-400";
 }
 
@@ -68,7 +68,8 @@ export function confidenceColorClass(confidence: string): string {
 // filter), used wherever a filter is expressed as a Set rather than a
 // single <select>.
 export function pillClass(selected: boolean): string {
-  return `rounded-full border px-2 py-0.5 text-xs transition-colors ${
+  // Roomier on phones so each one is a comfortable tap target.
+  return `press inline-flex min-h-[44px] items-center rounded-full border px-3.5 text-sm sm:min-h-0 sm:px-2 sm:py-0.5 sm:text-xs ${
     selected
       ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
       : "border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
