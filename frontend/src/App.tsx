@@ -30,6 +30,8 @@ import { formatBook } from "./lib/format";
 import { sideBook, sideEdge } from "./lib/odds";
 import { sideBook as sideBookGame, sideEdge as sideEdgeGame } from "./lib/gameOdds";
 import { useTheme } from "./lib/useTheme";
+import { gamePickKey, propPickKey, readPickView, savePickView, usePicks } from "./lib/usePicks";
+import MyPicksToggle from "./components/MyPicksToggle";
 import { LoadError, LoadingSkeleton } from "./components/LoadStates";
 
 const CONFIDENCE_RANK: Record<string, number> = { Low: 0, Medium: 1, High: 2 };
@@ -52,6 +54,8 @@ function summarizeFilters(filters: FilterState, meta: Meta): string {
   if (filters.minEdge > 0) parts.push(`Min. edge ${(filters.minEdge * 100).toFixed(1)}%+`);
   if (filters.minConfidence !== "Any") parts.push(`${filters.minConfidence}+ confidence`);
   if (filters.books.size > 0) parts.push(Array.from(filters.books).map(formatBook).join("/"));
+  if (filters.pickView === "only") parts.push("My picks");
+  if (filters.pickView === "hide") parts.push("Picked bets hidden");
   return parts.length ? parts.join(" · ") : "No filters applied";
 }
 
@@ -64,6 +68,8 @@ function summarizeGameFilters(filters: GameFilterState, meta: GameMeta): string 
   if (filters.minEdge > 0) parts.push(`Min. edge ${(filters.minEdge * 100).toFixed(1)}%+`);
   if (filters.minConfidence !== "Any") parts.push(`${filters.minConfidence}+ confidence`);
   if (filters.books.size > 0) parts.push(Array.from(filters.books).map(formatBook).join("/"));
+  if (filters.pickView === "only") parts.push("My picks");
+  if (filters.pickView === "hide") parts.push("Picked bets hidden");
   return parts.length ? parts.join(" · ") : "No filters applied";
 }
 
@@ -80,9 +86,15 @@ export default function App() {
   const [gameTrackRecord, setGameTrackRecord] = useState<TrackRecord | null>(null);
   const [gameError, setGameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [tdFilters, setTdFilters] = useState<FilterState>(DEFAULT_TD_FILTERS);
-  const [gameFilters, setGameFilters] = useState<GameFilterState>(DEFAULT_GAME_FILTERS);
+  const [filters, setFilters] = useState<FilterState>(() => ({ ...DEFAULT_FILTERS, pickView: readPickView("props") }));
+  const [tdFilters, setTdFilters] = useState<FilterState>(() => ({ ...DEFAULT_TD_FILTERS, pickView: readPickView("td") }));
+  const [gameFilters, setGameFilters] = useState<GameFilterState>(() => ({
+    ...DEFAULT_GAME_FILTERS,
+    pickView: readPickView("games"),
+  }));
+  useEffect(() => savePickView("props", filters.pickView), [filters.pickView]);
+  useEffect(() => savePickView("td", tdFilters.pickView), [tdFilters.pickView]);
+  useEffect(() => savePickView("games", gameFilters.pickView), [gameFilters.pickView]);
   const [selected, setSelected] = useState<Prop | null>(null);
   const [selectedGame, setSelectedGame] = useState<GameProp | null>(null);
   const [tab, setTab] = useState<Tab>("props");
@@ -90,6 +102,7 @@ export default function App() {
   const tableWrapperRef = useRef<HTMLDivElement>(null);
   const tabsAnchorRef = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
+  const { picks } = usePicks();
 
   useEffect(() => {
     Promise.all([fetchProps(), fetchMeta()])
@@ -133,6 +146,10 @@ export default function App() {
 
   const filtered = useMemo(() => {
     if (!props) return [];
+    // My picks lists every marked bet on the tab, even one a later line
+    // move has pushed under the edge or confidence filters.
+    if (filters.pickView === "only")
+      return props.filter((p) => !!picks[propPickKey(p)]).sort((a, b) => b.recommended_edge - a.recommended_edge);
     const search = filters.search.trim().toLowerCase();
     const minConfidenceRank = CONFIDENCE_RANK[filters.minConfidence] ?? 0;
     return props
@@ -144,11 +161,16 @@ export default function App() {
       .filter((p) => (sideEdge(p, p.recommended_side) ?? 0) >= filters.minEdge)
       .filter((p) => CONFIDENCE_RANK[p.confidence] >= minConfidenceRank)
       .filter((p) => filters.books.size === 0 || filters.books.has(sideBook(p, p.recommended_side) ?? ""))
+      .filter((p) => filters.pickView !== "hide" || !picks[propPickKey(p)])
       .sort((a, b) => b.recommended_edge - a.recommended_edge);
-  }, [props, filters]);
+  }, [props, filters, picks]);
 
   const filteredTd = useMemo(() => {
     if (!tdProps) return [];
+    // My picks lists every marked bet on the tab, even one a later line
+    // move has pushed under the edge or confidence filters.
+    if (tdFilters.pickView === "only")
+      return tdProps.filter((p) => !!picks[propPickKey(p)]).sort((a, b) => b.recommended_edge - a.recommended_edge);
     const search = tdFilters.search.trim().toLowerCase();
     const minConfidenceRank = CONFIDENCE_RANK[tdFilters.minConfidence] ?? 0;
     return tdProps
@@ -160,8 +182,9 @@ export default function App() {
       .filter((p) => (sideEdge(p, p.recommended_side) ?? 0) >= tdFilters.minEdge)
       .filter((p) => CONFIDENCE_RANK[p.confidence] >= minConfidenceRank)
       .filter((p) => tdFilters.books.size === 0 || tdFilters.books.has(sideBook(p, p.recommended_side) ?? ""))
+      .filter((p) => tdFilters.pickView !== "hide" || !picks[propPickKey(p)])
       .sort((a, b) => b.recommended_edge - a.recommended_edge);
-  }, [tdProps, tdFilters]);
+  }, [tdProps, tdFilters, picks]);
 
   const gameMatchups = useMemo(
     () => Array.from(new Set((gameProps ?? []).map((p) => p.matchup))),
@@ -170,6 +193,10 @@ export default function App() {
 
   const filteredGames = useMemo(() => {
     if (!gameProps) return [];
+    // My picks lists every marked bet on the tab, even one a later line
+    // move has pushed under the edge or confidence filters.
+    if (gameFilters.pickView === "only")
+      return gameProps.filter((p) => !!picks[gamePickKey(p)]).sort((a, b) => b.recommended_edge - a.recommended_edge);
     const minConfidenceRank = CONFIDENCE_RANK[gameFilters.minConfidence] ?? 0;
     return gameProps
       .filter((p) => (gameFilters.segment === "All" ? true : p.segment === gameFilters.segment))
@@ -180,8 +207,9 @@ export default function App() {
       .filter(
         (p) => gameFilters.books.size === 0 || gameFilters.books.has(sideBookGame(p, p.recommended_side) ?? "")
       )
+      .filter((p) => gameFilters.pickView !== "hide" || !picks[gamePickKey(p)])
       .sort((a, b) => b.recommended_edge - a.recommended_edge);
-  }, [gameProps, gameFilters]);
+  }, [gameProps, gameFilters, picks]);
 
   function selectTab(next: Tab) {
     setTab(next);
@@ -192,6 +220,11 @@ export default function App() {
     const top = anchor.getBoundingClientRect().top + window.scrollY;
     if (window.scrollY > top) window.scrollTo({ top });
   }
+
+  const pickedCount = (keys: string[]) => new Set(keys.filter((k) => picks[k])).size;
+  const propsPicked = useMemo(() => pickedCount((props ?? []).map(propPickKey)), [props, picks]);
+  const tdPicked = useMemo(() => pickedCount((tdProps ?? []).map(propPickKey)), [tdProps, picks]);
+  const gamesPicked = useMemo(() => pickedCount((gameProps ?? []).map(gamePickKey)), [gameProps, picks]);
 
   const activeRows =
     tab === "games" ? filteredGames : tab === "props" ? filtered : tab === "td" ? filteredTd : [];
@@ -270,7 +303,10 @@ export default function App() {
       tableFrame.style.border = `1px solid ${isDark ? "#1e293b" : "#e2e8f0"}`;
       tableFrame.style.borderRadius = "12px";
       tableFrame.style.overflow = "hidden";
-      tableFrame.appendChild(tableEl.cloneNode(true));
+      const tableClone = tableEl.cloneNode(true) as HTMLElement;
+      // The pick checkboxes are for this browser, not for a shared image.
+      tableClone.querySelectorAll("[data-export-hide]").forEach((n) => n.remove());
+      tableFrame.appendChild(tableClone);
 
       wrapper.appendChild(header);
       wrapper.appendChild(tableFrame);
@@ -375,8 +411,15 @@ export default function App() {
             <>
               <Filters meta={meta} filters={filters} onChange={setFilters} />
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
-                <span>
-                  Showing {filtered.length} of {props.length} props
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <span>
+                    Showing {filtered.length} of {props.length} props
+                  </span>
+                  <MyPicksToggle
+                    count={propsPicked}
+                    view={filters.pickView}
+                    onChange={(view) => setFilters({ ...filters, pickView: view })}
+                  />
                 </span>
                 <div className="flex items-center gap-2">
                   {filtered.length > EXPORT_ROW_LIMIT && (
@@ -428,8 +471,15 @@ export default function App() {
                     defaults={DEFAULT_TD_FILTERS}
                   />
                   <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
-                    <span>
-                      Showing {filteredTd.length} of {tdProps.length} props
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <span>
+                        Showing {filteredTd.length} of {tdProps.length} props
+                      </span>
+                      <MyPicksToggle
+                        count={tdPicked}
+                        view={tdFilters.pickView}
+                        onChange={(view) => setTdFilters({ ...tdFilters, pickView: view })}
+                      />
                     </span>
                     <div className="flex items-center gap-2">
                       {filteredTd.length > EXPORT_ROW_LIMIT && (
@@ -491,8 +541,15 @@ export default function App() {
                   )}
                   <GameFilters meta={gameMeta} matchups={gameMatchups} filters={gameFilters} onChange={setGameFilters} />
                   <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
-                    <span>
-                      Showing {filteredGames.length} of {gameProps.length} game bets
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <span>
+                        Showing {filteredGames.length} of {gameProps.length} game bets
+                      </span>
+                      <MyPicksToggle
+                        count={gamesPicked}
+                        view={gameFilters.pickView}
+                        onChange={(view) => setGameFilters({ ...gameFilters, pickView: view })}
+                      />
                     </span>
                     <div className="flex items-center gap-2">
                       {filteredGames.length > EXPORT_ROW_LIMIT && (

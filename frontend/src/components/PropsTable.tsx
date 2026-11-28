@@ -11,6 +11,8 @@ import {
 } from "../lib/format";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { ChevronIcon } from "./Icons";
+import PickButton, { PickedNote } from "./PickButton";
+import { propPickKey, propSnapshot, usePicks, type PickSnapshot } from "../lib/usePicks";
 import { isBinaryMarket, sideBook, sideEdge, sideImpliedProb, sideModelProb, sidePrice } from "../lib/odds";
 
 function propKey(p: Prop): string {
@@ -43,6 +45,7 @@ export default function PropsTable({
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const wide = useMediaQuery("(min-width: 640px)");
+  const { picks, toggle: togglePick } = usePicks();
   const [visible, setVisible] = useState(CARD_BATCH);
   useEffect(() => setVisible(CARD_BATCH), [props]);
 
@@ -73,6 +76,9 @@ export default function PropsTable({
             <PropCard
               key={key}
               prop={p}
+              picked={!!picks[propPickKey(p)]}
+              snapshot={picks[propPickKey(p)]}
+              onTogglePick={() => togglePick(propPickKey(p), () => propSnapshot(p))}
               showConfidence={showConfidence}
               expanded={expanded.has(key)}
               onToggle={() => toggleExpanded(key)}
@@ -95,16 +101,19 @@ export default function PropsTable({
       <table className="w-full min-w-[840px] border-collapse text-sm tabular-nums">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-100 text-left text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-            <th className="px-3 py-2 font-medium">Player</th>
-            <th className="px-3 py-2 font-medium">Market</th>
-            <th className="px-3 py-2 font-medium">Line</th>
-            <th className="px-3 py-2 font-medium">Pick</th>
-            <th className="px-3 py-2 font-medium">Book</th>
-            <th className="px-3 py-2 font-medium">Odds</th>
-            <th className="px-3 py-2 font-medium">Model %</th>
-            <th className="px-3 py-2 font-medium">Book %</th>
-            <th className="px-3 py-2 font-medium">Edge</th>
-            {showConfidence && <th className="px-3 py-2 font-medium">Confidence</th>}
+            <th className="whitespace-nowrap px-3 py-2 font-medium">Player</th>
+            <th className="whitespace-nowrap px-3 py-2 font-medium">Market</th>
+            <th className="whitespace-nowrap px-3 py-2 font-medium">Line</th>
+            <th className="whitespace-nowrap px-3 py-2 font-medium">Pick</th>
+            <th className="whitespace-nowrap px-3 py-2 font-medium">Book</th>
+            <th className="whitespace-nowrap px-3 py-2 font-medium">Odds</th>
+            <th className="whitespace-nowrap px-3 py-2 font-medium">Model %</th>
+            <th className="whitespace-nowrap px-3 py-2 font-medium">Book %</th>
+            <th className="whitespace-nowrap px-3 py-2 font-medium">Edge</th>
+            {showConfidence && <th className="whitespace-nowrap px-3 py-2 font-medium">Confidence</th>}
+            <th className="w-px px-2 py-2 font-medium" data-export-hide>
+              <span className="sr-only">Picked</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -114,11 +123,17 @@ export default function PropsTable({
             const key = propKey(p);
             const hasTrends = p.trends.length > 0;
             const isExpanded = expanded.has(key);
+            const pickKey = propPickKey(p);
+            const picked = !!picks[pickKey];
             return (
               <Fragment key={key}>
                 <tr
                   onClick={() => onSelect(p)}
-                  className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-900/60"
+                  className={`cursor-pointer border-b border-slate-100 last:border-0 dark:border-slate-800/60 ${
+                    picked
+                      ? "bg-emerald-50/70 hover:bg-emerald-50 dark:bg-emerald-950/25 dark:hover:bg-emerald-950/40"
+                      : "hover:bg-slate-50 dark:hover:bg-slate-900/60"
+                  }`}
                 >
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1.5">
@@ -159,14 +174,14 @@ export default function PropsTable({
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-2">{p.market_label}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{p.market_label}</td>
                   <td className="px-3 py-2">{formatLine(p.line)}</td>
                   <td className="px-3 py-2 uppercase">{binary ? "Yes" : side}</td>
                   <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
                     {formatBook(sideBook(p, side))}
                   </td>
                   <td className="px-3 py-2">{formatOdds(sidePrice(p, side))}</td>
-                  <td className="px-3 py-2">{formatPctWithOdds(sideModelProb(p, side))}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{formatPctWithOdds(sideModelProb(p, side))}</td>
                   <td className="px-3 py-2">{formatPct(sideImpliedProb(p, side))}</td>
                   <td className={`px-3 py-2 ${edgeColorClass(sideEdge(p, side) ?? 0)}`}>
                     {formatPct(sideEdge(p, side))}
@@ -181,10 +196,17 @@ export default function PropsTable({
                       </span>
                     </td>
                   )}
+                  <td className="w-px px-2 py-2" data-export-hide>
+                    <PickButton
+                      variant="icon"
+                      picked={picked}
+                      onToggle={() => togglePick(pickKey, () => propSnapshot(p))}
+                    />
+                  </td>
                 </tr>
                 {hasTrends && isExpanded && (
                   <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800/60 dark:bg-slate-900/40">
-                    <td colSpan={showConfidence ? 10 : 9} className="px-3 py-2 pl-11">
+                    <td colSpan={showConfidence ? 11 : 10} className="px-3 py-2 pl-11">
                       <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
                         {p.trends.map((trend, i) => (
                           <li key={i} className="flex items-start gap-1.5">
@@ -247,18 +269,28 @@ function PropCard({
   expanded,
   onToggle,
   onSelect,
+  picked,
+  snapshot,
+  onTogglePick,
 }: {
   prop: Prop;
   showConfidence: boolean;
   expanded: boolean;
   onToggle: () => void;
   onSelect: () => void;
+  picked: boolean;
+  snapshot: PickSnapshot | undefined;
+  onTogglePick: () => void;
 }) {
   const side = p.recommended_side;
   const binary = isBinaryMarket(p);
   const edge = sideEdge(p, side);
   return (
-    <li className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+    <li
+      className={`overflow-hidden rounded-xl border bg-white dark:bg-slate-900 ${
+        picked ? "border-emerald-500 dark:border-emerald-600" : "border-slate-200 dark:border-slate-800"
+      }`}
+    >
       <div
         role="button"
         tabIndex={0}
@@ -277,8 +309,10 @@ function PropCard({
               <span className="truncate">{p.player_name}</span>
               {p.injury_status && (
                 // Spelled out: a title tooltip never shows on a touch screen.
+                // Just the status word ("Questionable"); the body part is in the
+                // detail panel, and on a narrow card it would crowd out the name.
                 <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                  {p.injury_status}
+                  {p.injury_status.split(" (")[0]}
                 </span>
               )}
             </div>
@@ -324,20 +358,33 @@ function PropCard({
         </dl>
       </div>
 
-      {p.trends.length > 0 && (
-        <div className="border-t border-slate-100 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-expanded={expanded}
-            className="flex min-h-[44px] w-full items-center gap-1.5 px-3.5 text-xs font-medium text-emerald-700 active:bg-slate-50 dark:text-emerald-400 dark:active:bg-slate-800/60"
-          >
-            <ChevronIcon
-              className={`transition-transform duration-200 ease-[var(--ease-out)] ${expanded ? "rotate-90" : ""}`}
-            />
-            {p.trends.length} notable {p.trends.length === 1 ? "trend" : "trends"}
-          </button>
-          {expanded && (
+      {picked && snapshot && (
+        <PickedNote
+          snapshot={snapshot}
+          current={propSnapshot(p)}
+          className="-mt-1 px-3.5 pb-2.5"
+        />
+      )}
+      <div className="border-t border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between">
+          {p.trends.length > 0 ? (
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-expanded={expanded}
+              className="flex min-h-[44px] flex-1 items-center gap-1.5 px-3.5 text-xs font-medium text-emerald-700 active:bg-slate-50 dark:text-emerald-400 dark:active:bg-slate-800/60"
+            >
+              <ChevronIcon
+                className={`transition-transform duration-200 ease-[var(--ease-out)] ${expanded ? "rotate-90" : ""}`}
+              />
+              {p.trends.length} notable {p.trends.length === 1 ? "trend" : "trends"}
+            </button>
+          ) : (
+            <span className="flex-1" />
+          )}
+          <PickButton variant="footer" picked={picked} onToggle={onTogglePick} />
+        </div>
+          {p.trends.length > 0 && expanded && (
             <ul className="reveal space-y-1 px-3.5 pb-3 text-xs text-slate-600 dark:text-slate-400">
               {p.trends.map((trend, i) => (
                 <li key={i} className="flex items-start gap-1.5">
@@ -347,8 +394,7 @@ function PropCard({
               ))}
             </ul>
           )}
-        </div>
-      )}
+      </div>
     </li>
   );
 }

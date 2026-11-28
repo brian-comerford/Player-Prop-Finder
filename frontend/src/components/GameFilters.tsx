@@ -1,6 +1,7 @@
 import type { GameMeta } from "../lib/types";
 import { formatBook, pillClass } from "../lib/format";
 import FilterPanel from "./FilterPanel";
+import type { PickView } from "../lib/usePicks";
 
 const MARKET_OPTIONS: Array<{ key: "spread" | "total"; label: string }> = [
   { key: "spread", label: "Spread" },
@@ -18,6 +19,7 @@ export interface GameFilterState {
   // Which book(s) the recommended side's price has to come from. Empty
   // means "all books", same convention as Filters.tsx.
   books: Set<string>;
+  pickView: PickView;
 }
 
 export const DEFAULT_GAME_FILTERS: GameFilterState = {
@@ -27,6 +29,7 @@ export const DEFAULT_GAME_FILTERS: GameFilterState = {
   minEdge: 0.03,
   minConfidence: "Any",
   books: new Set(),
+  pickView: "all",
 };
 
 export default function GameFilters({

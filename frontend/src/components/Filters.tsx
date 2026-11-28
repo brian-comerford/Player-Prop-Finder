@@ -1,6 +1,7 @@
 import type { Meta } from "../lib/types";
 import { formatBook, pillClass } from "../lib/format";
 import FilterPanel from "./FilterPanel";
+import type { PickView } from "../lib/usePicks";
 
 export interface FilterState {
   search: string;
@@ -15,6 +16,9 @@ export interface FilterState {
   // Which book(s) the recommended side's price has to come from. Empty
   // means "all books".
   books: Set<string>;
+  // All bets, everything except the ones marked as picked, or only those
+  // (see lib/usePicks.ts).
+  pickView: PickView;
 }
 
 export const DEFAULT_FILTERS: FilterState = {
@@ -28,6 +32,7 @@ export const DEFAULT_FILTERS: FilterState = {
   minEdge: 0.04,
   minConfidence: "Any",
   books: new Set(),
+  pickView: "all",
 };
 
 // Anytime TD uses half the model weight, so its blended edges run smaller
